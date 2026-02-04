@@ -1,6 +1,6 @@
 {
   "name": "scan-soal-ai-full",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "start": "node index.js"
@@ -12,7 +12,7 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.8",
-    "tesseract.js": "^5.0.5",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "tesseract.js": "^5.0.5"
   }
 }
