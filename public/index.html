@@ -3,227 +3,121 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scan Soal AI</title>
-
+<title>Scan Soal AI - Full</title>
 <style>
-* {
-  box-sizing: border-box;
-  font-family: Arial, sans-serif;
-}
+body { font-family: Arial, sans-serif; padding:20px; background:#f4f4f4; }
+h1 { text-align:center; color:#333; margin-bottom:20px; }
+.container { max-width:700px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.1);}
+input, button { width:100%; padding:14px; margin-top:12px; font-size:16px; border-radius:6px; border:1px solid #ccc;}
+button { cursor:pointer; transition:0.3s;}
+button:hover { opacity:0.9; }
+.loginBtn { background:#4CAF50; color:#fff; border:none; }
+.registerBtn { background:#2196F3; color:#fff; border:none; }
+.forgotBtn { background:#f44336; color:#fff; border:none; }
+.uploadBtn { background:#ff9800; color:#fff; border:none; }
+#downloadBtn { background:#9c27b0; color:#fff; margin-top:15px; }
 
-body {
-  margin: 0;
-  background: #f2f4f8;
-}
+#soal, #jawaban { margin-top:20px; padding:15px; background:#e8f0fe; border-radius:6px; white-space: pre-wrap; min-height:80px; }
 
-/* ===== LOGIN ===== */
-#loginPage {
-  display: flex;
-  height: 100vh;
-  justify-content: center;
-  align-items: center;
-}
-
-.login-box {
-  background: #fff;
-  padding: 30px;
-  width: 90%;
-  max-width: 400px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
-.login-box h2 {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.login-box input {
-  width: 100%;
-  padding: 14px;
-  margin-bottom: 12px;
-  font-size: 16px;
-}
-
-.login-box button {
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-}
-
-/* ===== APP ===== */
-#app {
-  display: none;
-  padding: 20px;
-  max-width: 900px;
-  margin: auto;
-}
-
-header {
-  background: #2563eb;
-  color: #fff;
-  padding: 18px;
-  border-radius: 12px;
-  font-size: 22px;
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.card {
-  background: #fff;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
-.card h3 {
-  margin-top: 0;
-}
-
-input[type=file] {
-  width: 100%;
-  padding: 12px;
-  font-size: 16px;
-}
-
-button {
-  padding: 14px 18px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn-secondary {
-  background: #10b981;
-  color: #fff;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: #fff;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-textarea {
-  width: 100%;
-  min-height: 200px;
-  font-size: 16px;
-  padding: 14px;
-}
-
-footer {
-  text-align: center;
-  color: #777;
-  margin-top: 20px;
-}
+.hidden { display:none; }
+.tips { font-size:14px; color:#555; margin-bottom:15px; }
+label { font-weight:bold; display:block; margin-top:12px; }
 </style>
 </head>
-
 <body>
 
-<!-- LOGIN -->
-<div id="loginPage">
-  <div class="login-box">
-    <h2>Login Scan Soal AI</h2>
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="login()">Login</button>
+<h1>Scan Soal AI</h1>
+<div class="container">
+
+<!-- LOGIN / REGISTER -->
+<div id="authDiv">
+  <input id="email" placeholder="Email" type="email">
+  <input id="password" placeholder="Password" type="password">
+  <button class="loginBtn" onclick="login()">Login</button>
+  <button class="registerBtn" onclick="showRegister()">Daftar / Register</button>
+  <button class="forgotBtn" onclick="forgot()">Lupa Password</button>
+
+  <div id="registerDiv" class="hidden">
+    <h3>Daftar Baru</h3>
+    <input id="regEmail" placeholder="Email" type="email">
+    <input id="regPassword" placeholder="Password" type="password">
+    <button class="registerBtn" onclick="register()">Daftar Sekarang</button>
   </div>
 </div>
 
-<!-- APP -->
-<div id="app">
-  <header>📄 Scan Soal AI</header>
+<!-- UPLOAD & AI -->
+<div id="aiDiv" class="hidden">
+  <p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
+  
+  <label>Pilih File (max 5 gambar)</label>
+  <input type="file" id="fileInput" multiple accept="image/*">
 
-  <div class="card">
-    <h3>Upload Soal</h3>
-    <input type="file" id="fileInput">
-    <br><br>
-    <div class="actions">
-      <button class="btn-primary" onclick="processFile()">Proses File</button>
-      <button class="btn-secondary" onclick="openCamera()">Pakai Kamera</button>
-    </div>
-  </div>
+  <label>Ambil Foto Langsung</label>
+  <input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
 
-  <div class="card">
-    <h3>Hasil AI</h3>
-    <textarea id="result" placeholder="Hasil akan muncul di sini..."></textarea>
-    <br><br>
-    <div class="actions">
-      <button class="btn-primary" onclick="downloadWord()">Download Word</button>
-      <button class="btn-secondary" onclick="printResult()">Print</button>
-      <button class="btn-danger" onclick="logout()">Logout</button>
-    </div>
-  </div>
+  <button class="uploadBtn" id="processBtn">Proses Gambar & AI</button>
+  <button id="downloadBtn">Download Word</button>
 
-  <footer>© 2026 Scan Soal AI</footer>
+  <div id="soal"><strong>SOAL Preview:</strong>\n</div>
+  <div id="jawaban"><strong>JAWABAN Preview:</strong>\n</div>
+</div>
+
 </div>
 
 <script>
-function login() {
-  const u = document.getElementById("username").value;
-  const p = document.getElementById("password").value;
+/* ================= AUTH ================= */
+function showRegister(){ document.getElementById("registerDiv").classList.remove("hidden"); }
 
-  if (u === "admin" && p === "admin123") {
-    document.getElementById("loginPage").style.display = "none";
-    document.getElementById("app").style.display = "block";
-  } else {
-    alert("Username atau password salah");
-  }
+function login(){
+  fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:email.value,password:password.value})})
+  .then(r=>r.json()).then(res=>{
+    if(res.success){
+      alert("Login berhasil");
+      document.getElementById("authDiv").classList.add("hidden");
+      document.getElementById("aiDiv").classList.remove("hidden");
+    } else alert(res.error)
+  });
 }
 
-function logout() {
-  location.reload();
+function register(){
+  fetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:regEmail.value,password:regPassword.value})})
+  .then(r=>r.json()).then(res=>alert(res.error||"Daftar berhasil"));
 }
 
-function processFile() {
-  const file = document.getElementById("fileInput").files[0];
-  if (!file) {
-    alert("Pilih file dulu");
-    return;
-  }
-
-  document.getElementById("result").value =
-    "📌 Contoh hasil AI:\n\n1. Jelaskan pengertian fotosintesis!\n2. Apa fungsi klorofil?\n\n(Jika mau OCR + AI beneran, tinggal sambung API nanti)";
+function forgot(){
+  fetch("/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:email.value})})
+  .then(r=>r.json()).then(()=>alert("Email reset dikirim"));
 }
 
-function openCamera() {
-  alert("Kamera aktif (versi demo)\nUntuk OCR real: pakai API kamera + OCR");
+/* ================= UPLOAD + AI ================= */
+async function uploadImages(files){
+  const formData = new FormData();
+  for(let i=0;i<files.length;i++) formData.append("images", files[i]);
+  return await fetch("/upload",{method:"POST",body:formData}).then(r=>r.json());
 }
 
-function downloadWord() {
-  const text = document.getElementById("result").value;
-  const blob = new Blob([text], { type: "application/msword" });
-  const url = URL.createObjectURL(blob);
+document.getElementById("processBtn").addEventListener("click", async ()=>{
+  const files=[...document.getElementById("fileInput").files,...document.getElementById("cameraInput").files];
+  if(files.length===0){ alert("Pilih gambar dulu"); return; }
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "hasil-scan.doc";
-  a.click();
-}
+  const res = await uploadImages(files);
+  if(res.success){
+    const aiRes = await fetch("/process-ai",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ files:res.files.map(f=>f.filename) })
+    }).then(r=>r.json());
 
-function printResult() {
-  const content = document.getElementById("result").value;
-  const win = window.open("", "", "width=800,height=600");
-  win.document.write("<pre>" + content + "</pre>");
-  win.print();
-}
+    document.getElementById("soal").textContent = "SOAL:\n"+aiRes.soal;
+    document.getElementById("jawaban").textContent = "JAWABAN:\n"+aiRes.jawaban;
+  } else alert("Upload gagal");
+});
+
+document.getElementById("downloadBtn").addEventListener("click",()=>{ window.location.href="/download"; });
 </script>
 
 </body>
-      </html>
+</html>
