@@ -21,15 +21,19 @@ function lines(text) {
   return (text || "").split("\n").map(s => s.trim()).filter(Boolean);
 }
 
-app.post("/upload", upload.single("image"), async (req, res) => {
+app.post("/upload-multi", upload.array("images", 5), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
+    const files = req.files || [];
+    if (!files.length) return res.status(400).json({ error: "Tidak ada file" });
 
     const pgCount = Number(req.body.pgCount || 0);
     const essayCount = Number(req.body.essayCount || 0);
 
-    const result = await Tesseract.recognize(req.file.path, "ind+eng");
-    const text = result.data.text || "";
+    let allText = "";
+    for (const f of files) {
+      const result = await Tesseract.recognize(f.path, "ind+eng");
+      allText += "\n" + (result.data.text || "");
+    }
 
     const ai = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -41,7 +45,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
             "Keluarkan JSON valid TANPA teks lain. Format persis: {\"soal\":\"...\",\"jawaban\":\"...\"}. " +
             "Pisahkan baris dengan newline. Soal PG dulu, lalu Essay. Jawaban PG dulu (A/B/C/D), lalu jawaban Essay."
         },
-        { role: "user", content: text }
+        { role: "user", content: allText }
       ]
     });
 
@@ -49,7 +53,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
     try {
       json = JSON.parse(ai.choices[0].message.content);
     } catch {
-      json = { soal: text, jawaban: "" };
+      json = { soal: allText, jawaban: "" };
     }
 
     const soalLines = lines(json.soal);
