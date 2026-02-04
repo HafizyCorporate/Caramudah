@@ -1,41 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <body>
 
 <h2>Scan Soal AI</h2>
 
+<label>Upload File</label><br>
 <input type="file" id="file" accept="image/*"><br><br>
 
+<label>Kamera</label><br>
 <input type="file" id="cam" accept="image/*" capture="environment"><br><br>
 
 <button onclick="scan(file)">Proses File</button>
 <button onclick="scan(cam)">Proses Kamera</button>
 
-<h3>SOAL</h3>
-<pre id="ai"></pre>
+<h3>HASIL AI</h3>
+<pre id="result"></pre>
 
-<button onclick="exportWord()">Download Word</button>
+<button onclick="download()">Download Word</button>
 <button onclick="window.print()">Print</button>
 
 <script>
 async function scan(input){
-  const fd=new FormData();
-  fd.append("image",input.files[0]);
-  const r=await fetch("/scan",{method:"POST",body:fd});
-  const j=await r.json();
-  ai.textContent=j.ai;
+  if(!input.files[0]) return alert("Pilih gambar");
+  const fd = new FormData();
+  fd.append("image", input.files[0]);
+  const r = await fetch("/scan", { method: "POST", body: fd });
+  const j = await r.json();
+  result.textContent = j.ai;
 }
 
-async function exportWord(){
-  const r=await fetch("/export",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({text:ai.textContent})
+async function download(){
+  const r = await fetch("/export", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ text: result.textContent })
   });
-  const b=await r.blob();
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(b);
-  a.download="soal.docx";
+  const blob = await r.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "soal.docx";
   a.click();
 }
 </script>
