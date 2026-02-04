@@ -1,189 +1,86 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scan Soal AI</title>
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      background: radial-gradient(circle at top, #0b1220, #050914);
-      color: #e6e9f0;
-    }
-    .container {
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    h1 {
-      font-size: 22px;
-      margin-bottom: 12px;
-    }
-    .card {
-      background: #0f1629;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.3);
-      margin-bottom: 14px;
-    }
-    label {
-      font-size: 13px;
-      color: #9aa4b2;
-    }
-    input, button, textarea {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: none;
-      outline: none;
-      margin-top: 6px;
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
-    input[type="file"], input[type="number"], textarea {
-      background: #0b1220;
-      color: #e5e7eb;
-    }
-    textarea {
-      min-height: 120px;
-      resize: vertical;
-    }
-    .btn {
-      background: #22c55e;
-      color: #052e14;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .btn.secondary {
-      background: #1f2937;
-      color: #e5e7eb;
-    }
-    .row {
-      display: flex;
-      gap: 10px;
-    }
-    .row > * {
-      flex: 1;
-    }
-    .tips {
-      font-size: 12px;
-      color: #9aa4b2;
-      margin-top: 4px;
-      margin-bottom: 6px;
-    }
-    .actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 6px;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; color: #333; }
+    .container { max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, button { margin-top: 10px; width: 100%; padding: 10px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; }
+    button { cursor: pointer; background: #4CAF50; color: #fff; border: none; }
+    button:hover { background: #45a049; }
+    #soal, #jawaban { margin-top: 20px; padding: 10px; background: #e8f0fe; border-radius: 4px; white-space: pre-wrap; }
+    .tips { font-size: 14px; color: #555; margin-top: 10px; }
   </style>
 </head>
 <body>
+  <h1>Scan Soal & Jawaban AI</h1>
   <div class="container">
-    <h1>Scan Soal AI</h1>
+    <p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
+    
+    <!-- Upload file biasa -->
+    <label>Pilih File (max 5 gambar)</label>
+    <input type="file" id="fileInput" multiple accept="image/*">
+    
+    <!-- Ambil langsung dari kamera -->
+    <label>Ambil Foto Langsung</label>
+    <input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
 
-    <div class="card">
-      <label>📷 Ambil foto (kamera)</label>
-      <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple />
+    <button id="processBtn">Proses</button>
+    
+    <div id="soal"><strong>SOAL Preview:</strong>\n</div>
+    <div id="jawaban"><strong>JAWABAN Preview:</strong>\n</div>
 
-      <label>🖼️ Ambil dari galeri / file</label>
-      <input id="fileInput" type="file" accept="image/*" multiple />
-
-      <div class="row">
-        <input id="pgCount" type="number" min="0" placeholder="Jumlah soal pilihan ganda" />
-        <input id="essayCount" type="number" min="0" placeholder="Jumlah soal essay" />
-      </div>
-
-      <div class="tips">
-        Tips: Foto harus terang, lurus menghadap kertas & tulisan (bukan miring). Maksimal 5 foto/file.
-      </div>
-
-      <button id="processBtn" class="btn">Proses</button>
-    </div>
-
-    <div class="card">
-      <h3>Soal (Preview – hasil AI)</h3>
-      <textarea id="soalPreview" placeholder="Hasil soal akan muncul di sini..." readonly></textarea>
-    </div>
-
-    <div class="card">
-      <h3>Jawaban (Preview – hasil AI)</h3>
-      <textarea id="jawabanPreview" placeholder="Hasil jawaban akan muncul di sini..." readonly></textarea>
-
-      <div class="actions">
-        <button id="downloadBtn" class="btn secondary" disabled>Download Word</button>
-        <button id="printBtn" class="btn secondary" disabled>Print</button>
-      </div>
-    </div>
+    <button id="downloadBtn" style="background:#2196F3;">Download Word</button>
+    <button id="printBtn" style="background:#FF5722;">Print</button>
   </div>
 
   <script>
-    const cameraInput = document.getElementById("cameraInput");
-    const fileInput = document.getElementById("fileInput");
     const processBtn = document.getElementById("processBtn");
-    const soalPreview = document.getElementById("soalPreview");
-    const jawabanPreview = document.getElementById("jawabanPreview");
     const downloadBtn = document.getElementById("downloadBtn");
     const printBtn = document.getElementById("printBtn");
-    const pgCount = document.getElementById("pgCount");
-    const essayCount = document.getElementById("essayCount");
+    const soalDiv = document.getElementById("soal");
+    const jawabanDiv = document.getElementById("jawaban");
 
-    processBtn.onclick = async () => {
-      const files = [...cameraInput.files, ...fileInput.files].slice(0, 5);
+    async function uploadFiles(files) {
+      const formData = new FormData();
+      for (const file of files) formData.append("images", file);
+      const res = await fetch("/upload", { method: "POST", body: formData });
+      return res.json();
+    }
 
+    processBtn.addEventListener("click", async () => {
+      processBtn.textContent = "Memproses...";
+      const files = [...document.getElementById("fileInput").files, ...document.getElementById("cameraInput").files];
       if (!files.length) {
-        alert("Ambil foto atau pilih file dulu!");
+        alert("Pilih atau ambil gambar dulu!");
+        processBtn.textContent = "Proses";
         return;
       }
-
-      const form = new FormData();
-      files.forEach(f => form.append("images", f));
-      form.append("pg", pgCount.value || "0");
-      form.append("essay", essayCount.value || "0");
-
-      processBtn.textContent = "Memproses...";
-      processBtn.disabled = true;
-
       try {
-        const res = await fetch("/upload", { method: "POST", body: form });
-        const data = await res.json();
-
-        if (!res.ok) {
-          alert(data.error || "Gagal memproses di server");
-          return;
-        }
-
-        soalPreview.value = data.soal || "";
-        jawabanPreview.value = data.jawaban || "";
-
-        downloadBtn.disabled = false;
-        printBtn.disabled = false;
-
-        downloadBtn.onclick = () => {
-          window.open("/download", "_blank");
-        };
-
-        printBtn.onclick = () => {
-          const w = window.open("", "_blank");
-          w.document.write(`
-            <h1>SOAL</h1>
-            <pre>${soalPreview.value.replace(/</g,"&lt;")}</pre>
-            <div style="page-break-before:always"></div>
-            <h1>JAWABAN</h1>
-            <pre>${jawabanPreview.value.replace(/</g,"&lt;")}</pre>
-          `);
-          w.document.close();
-          w.print();
-        };
-
+        const data = await uploadFiles(files);
+        soalDiv.textContent = "SOAL Preview:\n" + data.soal;
+        jawabanDiv.textContent = "JAWABAN Preview:\n" + data.jawaban;
       } catch (e) {
-        alert("Koneksi ke server gagal.");
+        alert("Gagal memproses gambar");
+        console.error(e);
       } finally {
         processBtn.textContent = "Proses";
-        processBtn.disabled = false;
       }
-    };
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      window.location.href = "/download";
+    });
+
+    printBtn.addEventListener("click", () => {
+      const printWindow = window.open("", "", "width=800,height=600");
+      printWindow.document.write("<pre>" + soalDiv.textContent + "\n\n" + jawabanDiv.textContent + "</pre>");
+      printWindow.document.close();
+      printWindow.print();
+    });
   </script>
 </body>
 </html>
