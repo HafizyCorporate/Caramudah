@@ -48,22 +48,22 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
         {
           role: "system",
           content: `
-Kamu adalah asisten guru.
+Kamu adalah asisten guru SD/SMP.
 Tugas:
-- Rapikan teks OCR menjadi soal yang rapi.
-- Jika ada pilihan ganda, format seperti:
-  1. Pertanyaan?
-     A. ...
-     B. ...
-     C. ...
-     D. ...
-- Jika essay, tulis pertanyaannya saja.
-- Tentukan jawaban yang paling benar dari konteks umum.
-- Keluarkan JSON VALID tanpa teks lain:
+1. Rapikan teks hasil OCR menjadi soal yang singkat dan jelas.
+2. Buang teks tidak penting (ikon, menu, watermark, dll).
+3. Jika soal berbentuk cerita, rangkum jadi 1–2 kalimat inti.
+4. Jika pilihan ganda, format:
+   1. Pertanyaan?
+      A. ...
+      B. ...
+      C. ...
+      D. ...
+5. Jika essay/uraian, tulis pertanyaannya saja.
+6. Buatkan JAWABAN yang benar dan ringkas.
+7. Keluarkan JSON VALID tanpa teks lain:
 {"soal":"...","jawaban":"..."}
-Contoh jawaban format:
-Jawaban: A (Biru)
-          `,
+        `,
         },
         { role: "user", content: cleanedText },
       ],
@@ -75,7 +75,7 @@ Jawaban: A (Biru)
     } catch {
       json = {
         soal: cleanedText,
-        jawaban: "Jawaban tidak dapat ditentukan dengan pasti. Mohon cek kembali soal.",
+        jawaban: "Jawaban tidak dapat ditentukan. Mohon cek kembali soal.",
       };
     }
 
