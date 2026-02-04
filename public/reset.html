@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h2>Reset Password</h2>
+<input id="password" type="password" placeholder="Password baru"><br>
+<button onclick="reset()">Reset</button>
+
+<script>
+const token=new URLSearchParams(location.search).get("token");
+function reset(){
+ fetch("/reset-password",{method:"POST",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({token,password:password.value})})
+ .then(r=>r.json()).then(alert)
+}
+</script>
+</body>
+</html>
