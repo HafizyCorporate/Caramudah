@@ -1,49 +1,126 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Soal Scanner</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --muted: #9ca3af;
+      --primary: #22c55e;
+      --border: #1f2933;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(180deg, #020617, #020617 40%, #020617cc), radial-gradient(1200px 600px at 10% -10%, #0ea5e933, transparent 40%), radial-gradient(800px 400px at 90% 10%, #22c55e22, transparent 40%);
+      color: #e5e7eb; min-height: 100vh; padding: 16px;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .card {
+      background: rgba(17,24,39,.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    p { color: var(--muted); margin: 0 0 12px; }
+    .row { display: grid; gap: 10px; }
+    .btn {
+      appearance: none; border: 1px solid var(--border); background: #0b1220;
+      color: #e5e7eb; padding: 12px 14px; border-radius: 12px; font-weight: 600;
+    }
+    .btn.primary { background: linear-gradient(135deg, #16a34a, #22c55e); color: #052e16; border: none; }
+    .btn:disabled { opacity: .6; }
+    input[type=file] {
+      width: 100%; padding: 10px; border-radius: 12px; border: 1px dashed var(--border); background: #020617; color: #e5e7eb;
+    }
+    .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    .label { font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+    textarea {
+      width: 100%; min-height: 120px; resize: vertical;
+      background: #020617; color: #e5e7eb; border: 1px solid var(--border); border-radius: 12px; padding: 10px;
+    }
+    .footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 12px; }
+    .loading { display:none; gap: 8px; align-items: center; }
+    .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: blink 1.4s infinite both; }
+    .dot:nth-child(2){ animation-delay:.2s }
+    .dot:nth-child(3){ animation-delay:.4s }
+    @keyframes blink { 0%{opacity:.2} 20%{opacity:1} 100%{opacity:.2} }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; }
+    a.link { color:#22c55e; text-decoration:none; font-weight:600; }
+    .hint { font-size:.85rem; color: var(--muted); }
+  </style>
 </head>
-<body style="font-family: sans-serif; padding: 16px;">
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>📸 AI Soal Scanner</h1>
+      <p>Upload foto soal dari HP. Sistem akan memisahkan <b>Soal</b> & <b>Jawaban</b>, lalu bisa kamu download ke Word.</p>
+      <div class="row">
+        <input id="file" type="file" accept="image/*" capture="environment" />
+        <div class="actions">
+          <button id="btn" class="btn primary" onclick="upload()">🚀 Proses</button>
+          <span id="loading" class="loading">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="hint">Memproses gambar…</span>
+          </span>
+        </div>
+        <p class="hint">Tips: foto terang, lurus, fokus ke area soal & jawaban.</p>
+      </div>
+    </div>
 
-  <h2>📸 Upload Foto Soal</h2>
+    <div class="card grid">
+      <div>
+        <div class="label">📌 Soal</div>
+        <textarea id="soal" placeholder="Hasil soal akan muncul di sini…"></textarea>
+      </div>
+      <div>
+        <div class="label">✅ Jawaban</div>
+        <textarea id="jawaban" placeholder="Hasil jawaban akan muncul di sini…"></textarea>
+      </div>
+      <div class="actions">
+        <a id="download" class="link" style="display:none;" target="_blank">⬇ Download Word</a>
+      </div>
+    </div>
 
-  <input type="file" id="file" accept="image/*" capture="environment">
-  <br><br>
-  <button onclick="upload()" style="padding: 10px 20px;">Proses</button>
-
-  <h3>📌 Soal</h3>
-  <pre id="soal"></pre>
-
-  <h3>✅ Jawaban</h3>
-  <pre id="jawaban"></pre>
-
-  <a id="download" style="display:none;" target="_blank">⬇ Download Word</a>
+    <div class="footer">Built with ⚡ — mobile-first UI</div>
+  </div>
 
   <script>
     async function upload() {
       const file = document.getElementById("file").files[0];
-      if (!file) return alert("Pilih foto dulu");
+      if (!file) return alert("Pilih foto dulu ya");
+
+      const btn = document.getElementById("btn");
+      const loading = document.getElementById("loading");
+      btn.disabled = true; loading.style.display = "inline-flex";
 
       const formData = new FormData();
       formData.append("image", file);
 
-      const res = await fetch("/upload", {
-        method: "POST",
-        body: formData
-      });
+      try {
+        const res = await fetch("/upload", { method: "POST", body: formData });
+        const data = await res.json();
 
-      const data = await res.json();
+        document.getElementById("soal").value = data.soal || "";
+        document.getElementById("jawaban").value = data.jawaban || "";
 
-      document.getElementById("soal").innerText = data.soal || "Tidak terdeteksi";
-      document.getElementById("jawaban").innerText = data.jawaban || "Tidak terdeteksi";
-
-      const dl = document.getElementById("download");
-      dl.href = data.download;
-      dl.style.display = "block";
-      dl.innerText = "⬇ Download Word";
+        const dl = document.getElementById("download");
+        if (data.download) {
+          dl.href = data.download;
+          dl.style.display = "inline-block";
+        }
+      } catch (e) {
+        alert("Gagal memproses. Coba foto lain / cek koneksi.");
+      } finally {
+        btn.disabled = false; loading.style.display = "none";
+      }
     }
   </script>
-
 </body>
 </html>
