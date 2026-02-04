@@ -1,0 +1,14 @@
+<h3>Lupa Password</h3>
+<input id="email" placeholder="Email">
+<button onclick="reset()">Reset</button>
+
+<script>
+async function reset(){
+  await fetch("/forgot",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:email.value})
+  });
+  alert("Cek email");
+}
+</script>
