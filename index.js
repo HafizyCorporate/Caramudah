@@ -10,30 +10,40 @@ import path from "path";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ================== middleware ================== */
+/* ===== middleware ===== */
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-/* ================== folder safety ================== */
+/* ===== folder aman ===== */
 const uploadsDir = path.resolve("uploads");
 const processedDir = path.resolve("processed");
 
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(processedDir)) fs.mkdirSync(processedDir, { recursive: true });
 
-/* ================== multer ================== */
+/* ===== MULTER FIX (ANTI EEXIST) ===== */
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir); // ❗ TIDAK bikin folder
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+
 const upload = multer({
-  dest: uploadsDir,
+  storage,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-/* ================== groq ================== */
+/* ===== groq ===== */
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-/* ================== utils ================== */
+/* ===== util ===== */
 function cleanOCR(text) {
   return text
     .replace(/\n{2,}/g, "\n")
@@ -42,10 +52,10 @@ function cleanOCR(text) {
     .trim();
 }
 
-/* ================== routes ================== */
+/* ===== routes ===== */
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
+    if (!req.files?.length) {
       return res.status(400).json({ error: "Tidak ada gambar" });
     }
 
@@ -54,7 +64,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     for (const file of req.files) {
       const result = await Tesseract.recognize(file.path, "ind+eng");
       fullText += "\n" + (result.data.text || "");
-      fs.unlinkSync(file.path); // bersihin upload
+      fs.unlinkSync(file.path);
     }
 
     const cleanedText = cleanOCR(fullText);
@@ -64,12 +74,8 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `
-Kamu adalah asisten guru.
-Rapikan OCR jadi soal & jawaban.
-Output WAJIB JSON:
-{"soal":"...","jawaban":"..."}
-`,
+          content:
+            'Rapikan OCR jadi soal & jawaban. Output JSON: {"soal":"...","jawaban":"..."}',
         },
         { role: "user", content: cleanedText },
       ],
@@ -101,9 +107,9 @@ Output WAJIB JSON:
       ],
     });
 
-    const outputPath = path.join(processedDir, "hasil.docx");
+    const out = path.join(processedDir, "hasil.docx");
     const buffer = await Packer.toBuffer(doc);
-    fs.writeFileSync(outputPath, buffer);
+    fs.writeFileSync(out, buffer);
 
     res.json({
       soal: data.soal,
@@ -112,7 +118,7 @@ Output WAJIB JSON:
     });
   } catch (err) {
     console.error("UPLOAD ERROR:", err);
-    res.status(500).json({ error: "Gagal proses OCR / AI" });
+    res.status(500).json({ error: "Gagal proses" });
   }
 });
 
@@ -122,7 +128,6 @@ app.get("/download", (req, res) => {
   res.download(file, "hasil-soal-jawaban.docx");
 });
 
-/* ================== start ================== */
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
