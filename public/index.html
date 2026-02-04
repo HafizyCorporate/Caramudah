@@ -1,101 +1,187 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Scan Soal AI</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto; background:#0b1220; color:#e5e7eb; padding:16px }
-    .card { max-width:760px; margin:auto; background:#020617; padding:16px; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.4) }
-    h1 { font-size:22px; margin:6px 0 12px }
-    .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
-    @media (max-width: 640px){ .row{ grid-template-columns:1fr } }
-    input, textarea, button {
-      width:100%; margin:8px 0; padding:12px; border-radius:10px; border:1px solid #1f2933; background:#020617; color:#e5e7eb
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: radial-gradient(circle at top, #0b1220, #050914);
+      color: #e6e9f0;
     }
-    textarea{ min-height:140px }
-    button { background:#22c55e; color:#052e16; font-weight:700; cursor:pointer }
-    .btn-secondary{ background:#0b1220; color:#e5e7eb; border:1px solid #1f2933 }
-    .tips { font-size:12px; opacity:.85; margin-top:6px }
-    .footer { opacity:.7; font-size:12px; margin-top:10px }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 12px;
+      text-align: left;
+    }
+    .card {
+      background: #0f1629;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.3);
+      margin-bottom: 14px;
+    }
+    input, button, textarea {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    input[type="number"] {
+      background: #0b1220;
+      color: #fff;
+    }
+    input[type="file"] {
+      background: #0b1220;
+      color: #aaa;
+    }
+    textarea {
+      min-height: 120px;
+      background: #0b1220;
+      color: #9aa4b2;
+    }
+    .btn {
+      background: #22c55e;
+      color: #052e14;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn.secondary {
+      background: #1f2937;
+      color: #e5e7eb;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+    .row > * {
+      flex: 1;
+    }
+    .tips {
+      font-size: 12px;
+      color: #9aa4b2;
+      margin-bottom: 10px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="container">
     <h1>Scan Soal AI</h1>
 
-    <!-- Pilih dari kamera langsung -->
-    <label>📸 Ambil foto (kamera)</label>
-    <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple />
+    <div class="card">
+      <label>📷 Ambil foto (kamera)</label>
+      <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple />
 
-    <!-- Pilih file dari HP -->
-    <label>🗂️ Pilih file dari HP</label>
-    <input type="file" id="fileInput" accept="image/*" multiple />
+      <label>🖼️ Ambil dari galeri / file</label>
+      <input id="fileInput" type="file" accept="image/*" multiple />
 
-    <div class="row">
-      <input type="number" id="pgCount" min="0" placeholder="Jumlah soal pilihan ganda" />
-      <input type="number" id="essayCount" min="0" placeholder="Jumlah soal essay" />
+      <div class="row">
+        <input id="pgCount" type="number" placeholder="Jumlah soal pilihan ganda" />
+        <input id="essayCount" type="number" placeholder="Jumlah soal essay" />
+      </div>
+
+      <div class="tips">
+        Tips: Foto harus terang, lurus menghadap kertas & tulisan (bukan miring). Maksimal 5 foto/file.
+      </div>
+
+      <button id="processBtn" class="btn">Proses</button>
     </div>
 
-    <div class="tips">
-      Tips: Foto harus terang, lurus menghadap kertas & tulisan (bukan miring ke arah soal/jawaban).  
-      Maksimal 5 foto/file.
+    <div class="card">
+      <h3>Soal (Preview – hasil rangkuman AI)</h3>
+      <textarea id="soalPreview" placeholder="Hasil soal akan muncul di sini..."></textarea>
     </div>
 
-    <button id="processBtn" onclick="upload()">Proses</button>
+    <div class="card">
+      <h3>Jawaban (Preview – hasil rangkuman AI)</h3>
+      <textarea id="jawabanPreview" placeholder="Hasil jawaban akan muncul di sini..."></textarea>
 
-    <label>Soal (Preview – hasil rangkuman AI)</label>
-    <textarea id="soal" placeholder="Hasil soal akan muncul di sini..."></textarea>
-
-    <label>Jawaban (Preview – hasil rangkuman AI)</label>
-    <textarea id="jawaban" placeholder="Hasil jawaban akan muncul di sini..."></textarea>
-
-    <button id="downloadBtn" class="btn-secondary" style="display:none" onclick="downloadWord()">⬇ Download Word (rapih)</button>
-    <button id="printBtn" class="btn-secondary" style="display:none" onclick="window.print()">🖨️ Print</button>
-
-    <div class="footer">Siap cetak Word & print</div>
+      <div class="actions">
+        <button id="downloadBtn" class="btn secondary" disabled>Download Word</button>
+        <button id="printBtn" class="btn secondary" disabled>Print</button>
+      </div>
+    </div>
   </div>
 
   <script>
-    async function upload() {
-      const btn = document.getElementById("processBtn");
-      const cameraFiles = document.getElementById("cameraInput").files;
-      const fileFiles = document.getElementById("fileInput").files;
-      const pgCount = document.getElementById("pgCount").value || 0;
-      const essayCount = document.getElementById("essayCount").value || 0;
+    const cameraInput = document.getElementById("cameraInput");
+    const fileInput = document.getElementById("fileInput");
+    const processBtn = document.getElementById("processBtn");
+    const soalPreview = document.getElementById("soalPreview");
+    const jawabanPreview = document.getElementById("jawabanPreview");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const printBtn = document.getElementById("printBtn");
+    const pgCount = document.getElementById("pgCount");
+    const essayCount = document.getElementById("essayCount");
 
-      const files = [...cameraFiles, ...fileFiles];
-      if (!files.length) return alert("Ambil foto atau pilih file dulu ya 📸");
-      if (files.length > 5) return alert("Maksimal 5 foto/file ya.");
+    processBtn.onclick = async () => {
+      const files = [
+        ...cameraInput.files,
+        ...fileInput.files
+      ].slice(0, 5);
 
-      btn.disabled = true;
-      btn.innerText = "Memproses...";
+      if (!files.length) {
+        alert("Ambil foto atau pilih file dulu!");
+        return;
+      }
 
-      const formData = new FormData();
-      files.forEach((f) => formData.append("images", f));
-      formData.append("pgCount", pgCount);
-      formData.append("essayCount", essayCount);
+      const form = new FormData();
+      files.forEach(f => form.append("images", f));
+      form.append("pg", pgCount.value || "0");
+      form.append("essay", essayCount.value || "0");
+
+      processBtn.textContent = "Memproses...";
+      processBtn.disabled = true;
 
       try {
-        const res = await fetch("/upload-multi", { method: "POST", body: formData });
+        const res = await fetch("/upload", { method: "POST", body: form });
         const data = await res.json();
 
-        document.getElementById("soal").value = data.soal || "";
-        document.getElementById("jawaban").value = data.jawaban || "";
+        soalPreview.value = data.soal || "";
+        jawabanPreview.value = data.jawaban || "";
 
-        document.getElementById("downloadBtn").style.display = "block";
-        document.getElementById("printBtn").style.display = "block";
+        downloadBtn.disabled = false;
+        printBtn.disabled = false;
+
+        downloadBtn.onclick = () => {
+          window.open("/download", "_blank");
+        };
+
+        printBtn.onclick = () => {
+          const w = window.open("", "_blank");
+          w.document.write(`
+            <h1>SOAL</h1>
+            <pre>${soalPreview.value}</pre>
+            <div style="page-break-before:always"></div>
+            <h1>JAWABAN</h1>
+            <pre>${jawabanPreview.value}</pre>
+          `);
+          w.document.close();
+          w.print();
+        };
+
       } catch (e) {
-        alert("Gagal memproses. Coba ulangi ya.");
+        alert("Gagal proses");
       } finally {
-        btn.disabled = false;
-        btn.innerText = "Proses";
+        processBtn.textContent = "Proses";
+        processBtn.disabled = false;
       }
-    }
-
-    function downloadWord() {
-      window.location.href = "/download";
-    }
+    };
   </script>
 </body>
 </html>
