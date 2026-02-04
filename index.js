@@ -33,7 +33,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     }
 
     const ai = await groq.chat.completions.create({
-      model: "llama3-8b-8192",
+      model: "llama-3.1-8b-instant", // ✅ MODEL BARU (AKTIF)
       temperature: 0,
       messages: [
         {
@@ -52,7 +52,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
       json = { soal: fullText, jawaban: "" };
     }
 
-    // Buat Word: halaman 1 soal, halaman 2 jawaban
+    // Word: Halaman 1 = Soal, Halaman 2 = Jawaban
     const doc = new Document({
       sections: [
         {
