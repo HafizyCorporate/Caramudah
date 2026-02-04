@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import Tesseract from "tesseract.js";
-import Groq from "groq-sdk";
+import { GroqAI } from "@groqai/sdk";
 import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import fs from "fs";
 import path from "path";
@@ -14,7 +14,7 @@ app.use(express.static("public"));
 
 const upload = multer({ dest: "uploads/" });
 
-const groq = new Groq({
+const groqai = new GroqAI({
   apiKey: process.env.GROQ_API_KEY,
 });
 
@@ -41,14 +41,13 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
 
     const cleanedText = cleanOCR(fullText);
 
-    const ai = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.2,
+    const aiRes = await groqai.chat.completions.create({
+      model: "gpt-4o-mini", // model yang didukung
       messages: [
         {
           role: "system",
           content: `
-Kamu adalah asisten guru SD/SMP.
+Kamu adalah asisten guru.
 Tugas:
 1. Rapikan teks hasil OCR menjadi soal yang singkat dan jelas.
 2. Buang teks tidak penting (ikon, menu, watermark, dll).
@@ -63,15 +62,17 @@ Tugas:
 6. Buatkan JAWABAN yang benar dan ringkas.
 7. Keluarkan JSON VALID tanpa teks lain:
 {"soal":"...","jawaban":"..."}
-        `,
+          `,
         },
         { role: "user", content: cleanedText },
       ],
+      temperature: 0.2,
+      max_tokens: 800,
     });
 
     let json;
     try {
-      json = JSON.parse(ai.choices[0].message.content);
+      json = JSON.parse(aiRes.choices[0].message.content);
     } catch {
       json = {
         soal: cleanedText,
