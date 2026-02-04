@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h2>Register</h2>
+<input id="email" placeholder="Email"><br>
+<input id="pass" type="password" placeholder="Password"><br>
+<button onclick="reg()">Daftar</button>
+
+<script>
+async function reg(){
+  const r = await fetch("/register",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      email:email.value,
+      password:pass.value
+    })
+  });
+  if(r.ok) location.href="/login.html";
+  else alert("Email sudah ada");
+}
+</script>
+</body>
+</html>
