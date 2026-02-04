@@ -13,17 +13,16 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const upload = multer({ dest: "uploads/" });
+const WORD_PATH = path.resolve("hasil.docx");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const WORD_PATH = path.resolve("hasil.docx");
-
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: "File tidak ditemukan" });
+      return res.status(400).json({ error: "Tidak ada file yang diupload" });
     }
 
     const pg = req.body.pg || "0";
@@ -31,6 +30,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
 
     let fullText = "";
     for (const file of req.files) {
+      console.log("OCR file:", file.path);
       const result = await Tesseract.recognize(file.path, "ind+eng");
       fullText += "\n" + (result.data.text || "");
     }
@@ -39,6 +39,8 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
       return res.status(400).json({ error: "OCR tidak menghasilkan teks" });
     }
 
+    console.log("OCR DONE, kirim ke OpenAI...");
+
     const ai = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0,
@@ -46,7 +48,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
         {
           role: "system",
           content: `Pisahkan soal dan jawaban dari teks OCR.
-Balas JSON valid saja tanpa teks lain:
+Balas JSON valid saja:
 {"soal":"...","jawaban":"..."}
 
 Jumlah PG: ${pg}
@@ -95,14 +97,17 @@ Jawaban dipisah halaman.`
     fs.writeFileSync(WORD_PATH, buffer);
 
     return res.json({
+      ok: true,
       soal: json.soal || "",
       jawaban: json.jawaban || "",
       download: "/download"
     });
 
   } catch (e) {
-    console.error("UPLOAD ERROR:", e);
-    return res.status(500).json({ error: "Proses gagal di server" });
+    console.error("UPLOAD FATAL ERROR:", e);
+    return res.status(500).json({
+      error: "Server error saat memproses. Coba foto lebih kecil / 1 file dulu."
+    });
   }
 });
 
