@@ -5,14 +5,22 @@ import Groq from "groq-sdk";
 import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ===== ROOT (WAJIB BIAR RAILWAY TIDAK MATI) ===== */
+/* ===== PATH FIX (ESM) ===== */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/* ===== STATIC HTML ===== */
+app.use(express.static(path.join(__dirname, "public")));
+
+/* ===== ROOT ===== */
 app.get("/", (req, res) => {
-  res.send("OK - server alive");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 /* ===== UPLOAD ===== */
@@ -39,10 +47,9 @@ function cleanOCR(text) {
 app.post("/upload", upload.array("images", 3), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: "Tidak ada file yang diupload" });
+      return res.status(400).json({ error: "Tidak ada file diupload" });
     }
 
-    // Load tesseract saat dibutuhkan (AMAN)
     if (!Tesseract) {
       const mod = await import("tesseract.js");
       Tesseract = mod.default;
@@ -115,21 +122,21 @@ Tugas:
       download: "/download",
     });
   } catch (err) {
-    console.error("FATAL ERROR:", err);
+    console.error("ERROR:", err);
     res.status(500).json({ error: "Gagal memproses OCR / AI" });
   }
 });
 
 /* ===== DOWNLOAD ===== */
 app.get("/download", (req, res) => {
-  const filePath = path.resolve("hasil.docx");
+  const filePath = path.join(__dirname, "hasil.docx");
   if (!fs.existsSync(filePath)) {
     return res.status(404).send("File belum tersedia");
   }
   res.download(filePath, "hasil-soal-jawaban.docx");
 });
 
-/* ===== START SERVER ===== */
+/* ===== START ===== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
