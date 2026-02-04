@@ -19,7 +19,7 @@ const openai = new OpenAI({
 
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
-    if (!req.files?.length) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "File tidak ditemukan" });
     }
 
@@ -39,8 +39,9 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
         {
           role: "system",
           content: `Pisahkan soal dan jawaban dari teks OCR.
-Format JSON valid saja:
+Balas JSON valid saja tanpa teks lain:
 {"soal":"...","jawaban":"..."}
+
 Jumlah pilihan ganda: ${pg}
 Jumlah essay: ${essay}
 
@@ -53,7 +54,7 @@ Format soal:
 
 Lanjut soal essay.
 
-Jawaban di halaman terpisah.`
+Jawaban terpisah untuk semua soal.`
         },
         { role: "user", content: fullText }
       ]
@@ -62,7 +63,7 @@ Jawaban di halaman terpisah.`
     let json;
     try {
       json = JSON.parse(ai.choices[0].message.content);
-    } catch {
+    } catch (err) {
       json = { soal: fullText, jawaban: "" };
     }
 
@@ -70,7 +71,7 @@ Jawaban di halaman terpisah.`
       sections: [
         {
           children: [
-            newnew Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
             new Paragraph(json.soal || ""),
           ],
         },
