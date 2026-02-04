@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import Tesseract from "tesseract.js";
-import { GroqAI } from "@groqai/sdk";
+import Groq from "groq-sdk";
 import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import fs from "fs";
 import path from "path";
@@ -14,10 +14,12 @@ app.use(express.static("public"));
 
 const upload = multer({ dest: "uploads/" });
 
-const groqai = new GroqAI({
+/* ===== GROQ INIT ===== */
+const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+/* ===== UTIL ===== */
 function cleanOCR(text) {
   return text
     .replace(/\n{2,}/g, "\n")
@@ -26,13 +28,15 @@ function cleanOCR(text) {
     .trim();
 }
 
-app.post("/upload", upload.array("images", 5), async (req, res) => {
+/* ===== UPLOAD API ===== */
+app.post("/upload", upload.array("images", 3), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "Tidak ada file yang diupload" });
     }
 
     let fullText = "";
+
     for (const file of req.files) {
       const result = await Tesseract.recognize(file.path, "ind+eng");
       fullText += "\n" + (result.data.text || "");
@@ -41,8 +45,8 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
 
     const cleanedText = cleanOCR(fullText);
 
-    const aiRes = await groqai.chat.completions.create({
-      model: "gpt-4o-mini", // model yang didukung
+    const aiRes = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
       messages: [
         {
           role: "system",
@@ -51,16 +55,16 @@ Kamu adalah asisten guru.
 Tugas:
 1. Rapikan teks hasil OCR menjadi soal yang singkat dan jelas.
 2. Buang teks tidak penting (ikon, menu, watermark, dll).
-3. Jika soal berbentuk cerita, rangkum jadi 1–2 kalimat inti.
+3. Jika soal cerita, rangkum 1–2 kalimat inti.
 4. Jika pilihan ganda, format:
    1. Pertanyaan?
       A. ...
       B. ...
       C. ...
       D. ...
-5. Jika essay/uraian, tulis pertanyaannya saja.
+5. Jika essay, tulis pertanyaannya saja.
 6. Buatkan JAWABAN yang benar dan ringkas.
-7. Keluarkan JSON VALID tanpa teks lain:
+7. Output HARUS JSON VALID:
 {"soal":"...","jawaban":"..."}
           `,
         },
@@ -76,7 +80,7 @@ Tugas:
     } catch {
       json = {
         soal: cleanedText,
-        jawaban: "Jawaban tidak dapat ditentukan. Mohon cek kembali soal.",
+        jawaban: "Jawaban tidak dapat ditentukan. Silakan cek kembali soal.",
       };
     }
 
@@ -98,16 +102,17 @@ Tugas:
     fs.writeFileSync("hasil.docx", buffer);
 
     res.json({
-      soal: json.soal || "",
-      jawaban: json.jawaban || "",
+      soal: json.soal,
+      jawaban: json.jawaban,
       download: "/download",
     });
-  } catch (e) {
-    console.error("UPLOAD FATAL ERROR:", e);
-    res.status(500).json({ error: "Gagal memproses gambar / AI error" });
+  } catch (err) {
+    console.error("ERROR:", err);
+    res.status(500).json({ error: "Gagal memproses OCR / AI" });
   }
 });
 
+/* ===== DOWNLOAD ===== */
 app.get("/download", (req, res) => {
   const filePath = path.resolve("hasil.docx");
   if (!fs.existsSync(filePath)) {
@@ -116,5 +121,8 @@ app.get("/download", (req, res) => {
   res.download(filePath, "hasil-soal-jawaban.docx");
 });
 
+/* ===== SERVER ===== */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on port " + PORT));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
