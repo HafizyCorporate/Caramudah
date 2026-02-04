@@ -1,8 +1,7 @@
 {
-  "name": "ai-soal-hp",
-  "type": "module",
+  "name": "scan-soal-ai",
   "version": "1.0.0",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
@@ -11,7 +10,7 @@
     "docx": "^8.5.0",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
-    "openai": "^4.52.0",
-    "tesseract.js": "^5.1.0"
+    "openai": "^4.0.0",
+    "tesseract.js": "^5.0.4"
   }
 }
