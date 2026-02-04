@@ -18,30 +18,54 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+function cleanOCR(text) {
+  return text
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[|]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "Tidak ada file yang diupload" });
     }
 
-    // OCR gabungan dari max 5 gambar
     let fullText = "";
     for (const file of req.files) {
       const result = await Tesseract.recognize(file.path, "ind+eng");
       fullText += "\n" + (result.data.text || "");
-      fs.unlinkSync(file.path); // hapus file sementara
+      fs.unlinkSync(file.path);
     }
 
+    const cleanedText = cleanOCR(fullText);
+
     const ai = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant", // ✅ MODEL BARU (AKTIF)
-      temperature: 0,
+      model: "llama-3.1-8b-instant",
+      temperature: 0.2,
       messages: [
         {
           role: "system",
-          content:
-            'Pisahkan teks menjadi SOAL dan JAWABAN. Kembalikan JSON valid tanpa teks lain: {"soal":"...","jawaban":"..."}',
+          content: `
+Kamu adalah asisten guru.
+Tugas:
+- Rapikan teks OCR menjadi soal yang rapi.
+- Jika ada pilihan ganda, format seperti:
+  1. Pertanyaan?
+     A. ...
+     B. ...
+     C. ...
+     D. ...
+- Jika essay, tulis pertanyaannya saja.
+- Tentukan jawaban yang paling benar dari konteks umum.
+- Keluarkan JSON VALID tanpa teks lain:
+{"soal":"...","jawaban":"..."}
+Contoh jawaban format:
+Jawaban: A (Biru)
+          `,
         },
-        { role: "user", content: fullText },
+        { role: "user", content: cleanedText },
       ],
     });
 
@@ -49,10 +73,12 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     try {
       json = JSON.parse(ai.choices[0].message.content);
     } catch {
-      json = { soal: fullText, jawaban: "" };
+      json = {
+        soal: cleanedText,
+        jawaban: "Jawaban tidak dapat ditentukan dengan pasti. Mohon cek kembali soal.",
+      };
     }
 
-    // Word: Halaman 1 = Soal, Halaman 2 = Jawaban
     const doc = new Document({
       sections: [
         {
