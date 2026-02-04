@@ -2,8 +2,8 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import Tesseract from "tesseract.js";
-import OpenAI from "openai";
-import { Document, Packer, Paragraph, HeadingLevel } from "docx";
+import Groq from "groq-sdk";
+import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import fs from "fs";
 import path from "path";
 
@@ -13,10 +13,9 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const upload = multer({ dest: "uploads/" });
-const WORD_PATH = path.resolve("hasil.docx");
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 app.post("/upload", upload.array("images", 5), async (req, res) => {
@@ -25,67 +24,42 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
       return res.status(400).json({ error: "Tidak ada file yang diupload" });
     }
 
-    const pg = req.body.pg || "0";
-    const essay = req.body.essay || "0";
-
+    // OCR gabungan dari max 5 gambar
     let fullText = "";
     for (const file of req.files) {
-      console.log("OCR file:", file.path);
       const result = await Tesseract.recognize(file.path, "ind+eng");
       fullText += "\n" + (result.data.text || "");
+      fs.unlinkSync(file.path); // hapus file sementara
     }
 
-    if (!fullText.trim()) {
-      return res.status(400).json({ error: "OCR tidak menghasilkan teks" });
-    }
-
-    console.log("OCR DONE, kirim ke OpenAI...");
-
-    const ai = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const ai = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
       temperature: 0,
       messages: [
         {
           role: "system",
-          content: `Pisahkan soal dan jawaban dari teks OCR.
-Balas JSON valid saja:
-{"soal":"...","jawaban":"..."}
-
-Jumlah PG: ${pg}
-Jumlah Essay: ${essay}
-
-Format soal:
-1. Soal PG
-   A. ...
-   B. ...
-   C. ...
-   D. ...
-
-Lanjut soal essay.
-Jawaban dipisah halaman.`
+          content:
+            'Pisahkan teks menjadi SOAL dan JAWABAN. Kembalikan JSON valid tanpa teks lain: {"soal":"...","jawaban":"..."}',
         },
-        { role: "user", content: fullText }
-      ]
+        { role: "user", content: fullText },
+      ],
     });
 
     let json;
     try {
       json = JSON.parse(ai.choices[0].message.content);
-    } catch (err) {
-      console.error("JSON PARSE ERROR:", ai.choices[0].message.content);
+    } catch {
       json = { soal: fullText, jawaban: "" };
     }
 
+    // Buat Word: halaman 1 soal, halaman 2 jawaban
     const doc = new Document({
       sections: [
         {
           children: [
             new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
             new Paragraph(json.soal || ""),
-          ],
-        },
-        {
-          children: [
+            new Paragraph({ children: [new PageBreak()] }),
             new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
             new Paragraph(json.jawaban || ""),
           ],
@@ -94,28 +68,25 @@ Jawaban dipisah halaman.`
     });
 
     const buffer = await Packer.toBuffer(doc);
-    fs.writeFileSync(WORD_PATH, buffer);
+    fs.writeFileSync("hasil.docx", buffer);
 
-    return res.json({
-      ok: true,
+    res.json({
       soal: json.soal || "",
       jawaban: json.jawaban || "",
-      download: "/download"
+      download: "/download",
     });
-
   } catch (e) {
     console.error("UPLOAD FATAL ERROR:", e);
-    return res.status(500).json({
-      error: "Server error saat memproses. Coba foto lebih kecil / 1 file dulu."
-    });
+    res.status(500).json({ error: "Gagal memproses gambar / AI error" });
   }
 });
 
 app.get("/download", (req, res) => {
-  if (!fs.existsSync(WORD_PATH)) {
-    return res.status(404).send("File Word belum tersedia. Klik Proses dulu.");
+  const filePath = path.resolve("hasil.docx");
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File belum tersedia");
   }
-  res.download(WORD_PATH, "hasil-soal-jawaban.docx");
+  res.download(filePath, "hasil-soal-jawaban.docx");
 });
 
 const PORT = process.env.PORT || 3000;
