@@ -5,6 +5,7 @@ import Tesseract from "tesseract.js";
 import OpenAI from "openai";
 import { Document, Packer, Paragraph, HeadingLevel } from "docx";
 import fs from "fs";
+import path from "path";
 
 const app = express();
 app.use(cors());
@@ -16,6 +17,8 @@ const upload = multer({ dest: "uploads/" });
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const WORD_PATH = path.resolve("hasil.docx");
 
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
@@ -32,6 +35,10 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
       fullText += "\n" + (result.data.text || "");
     }
 
+    if (!fullText.trim()) {
+      return res.status(400).json({ error: "OCR tidak menghasilkan teks" });
+    }
+
     const ai = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0,
@@ -42,8 +49,8 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
 Balas JSON valid saja tanpa teks lain:
 {"soal":"...","jawaban":"..."}
 
-Jumlah pilihan ganda: ${pg}
-Jumlah essay: ${essay}
+Jumlah PG: ${pg}
+Jumlah Essay: ${essay}
 
 Format soal:
 1. Soal PG
@@ -53,8 +60,7 @@ Format soal:
    D. ...
 
 Lanjut soal essay.
-
-Jawaban terpisah untuk semua soal.`
+Jawaban dipisah halaman.`
         },
         { role: "user", content: fullText }
       ]
@@ -64,6 +70,7 @@ Jawaban terpisah untuk semua soal.`
     try {
       json = JSON.parse(ai.choices[0].message.content);
     } catch (err) {
+      console.error("JSON PARSE ERROR:", ai.choices[0].message.content);
       json = { soal: fullText, jawaban: "" };
     }
 
@@ -85,21 +92,25 @@ Jawaban terpisah untuk semua soal.`
     });
 
     const buffer = await Packer.toBuffer(doc);
-    fs.writeFileSync("hasil.docx", buffer);
+    fs.writeFileSync(WORD_PATH, buffer);
 
-    res.json({
+    return res.json({
       soal: json.soal || "",
-      jawaban: json.jawaban || ""
+      jawaban: json.jawaban || "",
+      download: "/download"
     });
 
   } catch (e) {
     console.error("UPLOAD ERROR:", e);
-    res.status(500).json({ error: "Gagal memproses gambar" });
+    return res.status(500).json({ error: "Proses gagal di server" });
   }
 });
 
 app.get("/download", (req, res) => {
-  res.download("hasil.docx");
+  if (!fs.existsSync(WORD_PATH)) {
+    return res.status(404).send("File Word belum tersedia. Klik Proses dulu.");
+  }
+  res.download(WORD_PATH, "hasil-soal-jawaban.docx");
 });
 
 const PORT = process.env.PORT || 3000;
