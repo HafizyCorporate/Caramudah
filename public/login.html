@@ -1,20 +1,23 @@
-<h3>Login</h3>
+<!DOCTYPE html>
+<html>
+<body>
+<h2>Login</h2>
 <input id="email" placeholder="Email"><br>
-<input id="pass" type="password" placeholder="Password"><br>
+<input id="password" type="password" placeholder="Password"><br>
 <button onclick="login()">Login</button>
-<a href="forgot.html">Lupa Password</a>
+<button onclick="forgot()">Lupa Password</button>
 
 <script>
-async function login(){
-  const r = await fetch("/login",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      email:email.value,
-      password:pass.value
-    })
-  });
-  if(r.ok) location="index.html";
-  else alert("Login gagal");
+function login(){
+ fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({email:email.value,password:password.value})})
+ .then(r=>r.json()).then(alert)
+}
+function forgot(){
+ fetch("/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({email:email.value})})
+ .then(r=>r.json()).then(()=>alert("Email dikirim"))
 }
 </script>
+</body>
+</html>
