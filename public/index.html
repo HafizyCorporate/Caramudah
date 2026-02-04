@@ -3,45 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scan Soal & Jawaban AI</title>
+<title>Scan Soal AI</title>
 <style>
-body{font-family:Arial;background:#f2f2f2}
-.container{max-width:420px;margin:30px auto;background:#fff;padding:20px;border-radius:8px}
-button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;font-size:16px}
-.green{background:#4caf50;color:#fff}
-.blue{background:#2196f3;color:#fff}
-.orange{background:#ff5722;color:#fff}
-.preview{background:#eaf2ff;padding:10px;margin-top:10px;border-radius:5px;white-space:pre-wrap}
+body{font-family:Arial;background:#f4f4f4;padding:20px}
+.container{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:8px}
+button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:6px;color:#fff;font-size:16px}
+#process{background:#4CAF50}
+#download{background:#2196F3}
+#soal,#jawaban{background:#e8f0fe;padding:10px;border-radius:6px;margin-top:10px;white-space:pre-wrap}
 </style>
 </head>
 <body>
 
 <div class="container">
-<h2 align="center">Scan Soal & Jawaban AI</h2>
+<h2>Scan Soal & Jawaban AI</h2>
 
-<p>Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
+<input type="file" id="images" multiple accept="image/*">
+<button id="process">Upload & Proses</button>
 
-<form id="form">
-<input type="file" name="images" multiple accept="image/*">
-<input type="file" name="images" accept="image/*" capture="environment">
-<button class="green">Proses</button>
-</form>
+<div id="soal"></div>
+<div id="jawaban"></div>
 
-<div id="soal" class="preview">SOAL Preview:\n</div>
-<div id="jawaban" class="preview">JAWABAN Preview:\n</div>
-
-<button class="blue">Download Word</button>
-<button class="orange" onclick="window.print()">Print</button>
+<button id="download" style="display:none">Download Word</button>
 </div>
 
 <script>
-const form = document.getElementById("form");
-form.onsubmit = async e => {
-  e.preventDefault();
-  const res = await fetch("/process",{method:"POST",body:new FormData(form)});
+document.getElementById("process").onclick = async () => {
+  const files = document.getElementById("images").files;
+  if (!files.length) return alert("Pilih gambar dulu");
+
+  const formData = new FormData();
+  for (const f of files) formData.append("images", f);
+
+  const res = await fetch("/upload", { method: "POST", body: formData });
   const data = await res.json();
-  document.getElementById("soal").textContent = "SOAL Preview:\n" + data.soal;
-  document.getElementById("jawaban").textContent = "JAWABAN Preview:\n" + data.jawaban;
+
+  document.getElementById("soal").innerText = "SOAL:\n" + (data.soal || "");
+  document.getElementById("jawaban").innerText = "JAWABAN:\n" + (data.jawaban || "");
+
+  if (data.download) {
+    const btn = document.getElementById("download");
+    btn.style.display = "block";
+    btn.onclick = () => window.location = data.download;
+  }
 };
 </script>
 
