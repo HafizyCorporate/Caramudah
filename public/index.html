@@ -19,7 +19,6 @@
     h1 {
       font-size: 22px;
       margin-bottom: 12px;
-      text-align: left;
     }
     .card {
       background: #0f1629;
@@ -28,27 +27,27 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.3);
       margin-bottom: 14px;
     }
+    label {
+      font-size: 13px;
+      color: #9aa4b2;
+    }
     input, button, textarea {
       width: 100%;
       padding: 12px;
       border-radius: 10px;
       border: none;
       outline: none;
+      margin-top: 6px;
       margin-bottom: 10px;
       font-size: 14px;
     }
-    input[type="number"] {
+    input[type="file"], input[type="number"], textarea {
       background: #0b1220;
-      color: #fff;
-    }
-    input[type="file"] {
-      background: #0b1220;
-      color: #aaa;
+      color: #e5e7eb;
     }
     textarea {
       min-height: 120px;
-      background: #0b1220;
-      color: #9aa4b2;
+      resize: vertical;
     }
     .btn {
       background: #22c55e;
@@ -70,12 +69,13 @@
     .tips {
       font-size: 12px;
       color: #9aa4b2;
-      margin-bottom: 10px;
+      margin-top: 4px;
+      margin-bottom: 6px;
     }
     .actions {
       display: flex;
       gap: 10px;
-      margin-top: 10px;
+      margin-top: 6px;
     }
   </style>
 </head>
@@ -91,8 +91,8 @@
       <input id="fileInput" type="file" accept="image/*" multiple />
 
       <div class="row">
-        <input id="pgCount" type="number" placeholder="Jumlah soal pilihan ganda" />
-        <input id="essayCount" type="number" placeholder="Jumlah soal essay" />
+        <input id="pgCount" type="number" min="0" placeholder="Jumlah soal pilihan ganda" />
+        <input id="essayCount" type="number" min="0" placeholder="Jumlah soal essay" />
       </div>
 
       <div class="tips">
@@ -103,13 +103,13 @@
     </div>
 
     <div class="card">
-      <h3>Soal (Preview – hasil rangkuman AI)</h3>
-      <textarea id="soalPreview" placeholder="Hasil soal akan muncul di sini..."></textarea>
+      <h3>Soal (Preview – hasil AI)</h3>
+      <textarea id="soalPreview" placeholder="Hasil soal akan muncul di sini..." readonly></textarea>
     </div>
 
     <div class="card">
-      <h3>Jawaban (Preview – hasil rangkuman AI)</h3>
-      <textarea id="jawabanPreview" placeholder="Hasil jawaban akan muncul di sini..."></textarea>
+      <h3>Jawaban (Preview – hasil AI)</h3>
+      <textarea id="jawabanPreview" placeholder="Hasil jawaban akan muncul di sini..." readonly></textarea>
 
       <div class="actions">
         <button id="downloadBtn" class="btn secondary" disabled>Download Word</button>
@@ -130,10 +130,7 @@
     const essayCount = document.getElementById("essayCount");
 
     processBtn.onclick = async () => {
-      const files = [
-        ...cameraInput.files,
-        ...fileInput.files
-      ].slice(0, 5);
+      const files = [...cameraInput.files, ...fileInput.files].slice(0, 5);
 
       if (!files.length) {
         alert("Ambil foto atau pilih file dulu!");
@@ -152,6 +149,11 @@
         const res = await fetch("/upload", { method: "POST", body: form });
         const data = await res.json();
 
+        if (!res.ok) {
+          alert(data.error || "Gagal memproses di server");
+          return;
+        }
+
         soalPreview.value = data.soal || "";
         jawabanPreview.value = data.jawaban || "";
 
@@ -166,17 +168,17 @@
           const w = window.open("", "_blank");
           w.document.write(`
             <h1>SOAL</h1>
-            <pre>${soalPreview.value}</pre>
+            <pre>${soalPreview.value.replace(/</g,"&lt;")}</pre>
             <div style="page-break-before:always"></div>
             <h1>JAWABAN</h1>
-            <pre>${jawabanPreview.value}</pre>
+            <pre>${jawabanPreview.value.replace(/</g,"&lt;")}</pre>
           `);
           w.document.close();
           w.print();
         };
 
       } catch (e) {
-        alert("Gagal proses");
+        alert("Koneksi ke server gagal.");
       } finally {
         processBtn.textContent = "Proses";
         processBtn.disabled = false;
