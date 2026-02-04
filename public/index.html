@@ -1,52 +1,38 @@
 <!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scan Soal AI</title>
-<style>
-body{font-family:Arial;background:#f4f4f4;padding:20px}
-.container{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:8px}
-button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:6px;color:#fff;font-size:16px}
-#process{background:#4CAF50}
-#download{background:#2196F3}
-#soal,#jawaban{background:#e8f0fe;padding:10px;border-radius:6px;margin-top:10px;white-space:pre-wrap}
-</style>
-</head>
+<html>
 <body>
 
-<div class="container">
-<h2>Scan Soal & Jawaban AI</h2>
+<h2>Scan Soal AI</h2>
 
-<input type="file" id="images" multiple accept="image/*">
-<button id="process">Upload & Proses</button>
+<input type="file" id="file">
+<button onclick="upload()">Proses</button>
 
-<div id="soal"></div>
-<div id="jawaban"></div>
+<pre id="soal"></pre>
 
-<button id="download" style="display:none">Download Word</button>
-</div>
+<button onclick="exportWord()">Export Word</button>
+<button onclick="window.print()">Print</button>
 
 <script>
-document.getElementById("process").onclick = async () => {
-  const files = document.getElementById("images").files;
-  if (!files.length) return alert("Pilih gambar dulu");
+async function upload(){
+  const fd=new FormData();
+  fd.append("image",file.files[0]);
+  const r=await fetch("/upload",{method:"POST",body:fd});
+  const j=await r.json();
+  soal.textContent=j.ai;
+}
 
-  const formData = new FormData();
-  for (const f of files) formData.append("images", f);
-
-  const res = await fetch("/upload", { method: "POST", body: formData });
-  const data = await res.json();
-
-  document.getElementById("soal").innerText = "SOAL:\n" + (data.soal || "");
-  document.getElementById("jawaban").innerText = "JAWABAN:\n" + (data.jawaban || "");
-
-  if (data.download) {
-    const btn = document.getElementById("download");
-    btn.style.display = "block";
-    btn.onclick = () => window.location = data.download;
-  }
-};
+async function exportWord(){
+  await fetch("/export",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({soal:soal.textContent})
+  }).then(r=>r.blob()).then(b=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(b);
+    a.download="soal.docx";
+    a.click();
+  });
+}
 </script>
 
 </body>
