@@ -4,7 +4,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import Tesseract from "tesseract.js";
-import { GroqAI } from "@groqai/sdk";
+import fetch from "node-fetch";
 import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import sqlite3 from "sqlite3";
 import session from "express-session";
@@ -15,14 +15,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-/* ================= SESSION ================= */
+/* ===== SESSION ===== */
 app.use(session({
   secret:"supersecretkey",
   resave:false,
   saveUninitialized:true
 }));
 
-/* ================= DATABASE ================= */
+/* ===== DATABASE ===== */
 const db = new sqlite3.Database("database.db");
 db.serialize(()=>{
   db.run(`CREATE TABLE IF NOT EXISTS users(
@@ -32,7 +32,7 @@ db.serialize(()=>{
   )`);
 });
 
-/* ================= UPLOAD FOLDER ================= */
+/* ===== FOLDER UPLOAD ===== */
 ["uploads","processed"].forEach(dir=>{
   if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true});
 });
@@ -43,14 +43,40 @@ const storage = multer.diskStorage({
 });
 const upload = multer({storage});
 
-/* ================= GROQ AI ================= */
-const groqai = new GroqAI({apiKey:process.env.GROQ_API_KEY});
+/* ===== GROQ API via fetch ===== */
+async function sendToGroq(text){
+  const res = await fetch("https://api.groq.ai/v1/chat/completions",{
+    method:"POST",
+    headers:{
+      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      "Content-Type":"application/json"
+    },
+    body: JSON.stringify({
+      model:"gpt-4o-mini",
+      messages:[
+        {role:"system",content:`Kamu asisten guru. Rapikan teks hasil OCR menjadi soal pilihan ganda & essay. Keluarkan JSON: {"soal":"...","jawaban":"..."}`},
+        {role:"user",content:text}
+      ],
+      temperature:0.2,
+      max_tokens:800
+    })
+  });
+  const data = await res.json();
+  if(data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content){
+    try{
+      return JSON.parse(data.choices[0].message.content);
+    }catch{
+      return {soal:text,jawaban:"Jawaban tidak bisa ditentukan"};
+    }
+  }
+  return {soal:text,jawaban:"Jawaban tidak bisa ditentukan"};
+}
 
 function cleanOCR(text){
   return text.replace(/\n{2,}/g,"\n").replace(/[|]/g,"").replace(/\s{2,}/g," ").trim();
 }
 
-/* ================= AUTH ================= */
+/* ===== AUTH ===== */
 app.post("/register", async (req,res)=>{
   const {email,password}=req.body;
   if(!email || !password) return res.json({error:"Email & Password dibutuhkan"});
@@ -74,17 +100,17 @@ app.post("/login", (req,res)=>{
 
 app.post("/forgot-password",(req,res)=>{
   const {email}=req.body;
-  // Placeholder: implement email reset logic
+  // TODO: kirim email reset password
   res.json({success:true});
 });
 
-/* ================= UPLOAD ================= */
+/* ===== UPLOAD ===== */
 app.post("/upload",upload.array("images",5),(req,res)=>{
   if(!req.files) return res.json({success:false});
   res.json({success:true,files:req.files.map(f=>({filename:f.filename}))});
 });
 
-/* ================= PROCESS AI ================= */
+/* ===== PROCESS AI ===== */
 app.post("/process-ai", async (req,res)=>{
   try{
     const {files} = req.body;
@@ -98,23 +124,15 @@ app.post("/process-ai", async (req,res)=>{
       }
     }
     const cleaned = cleanOCR(fullText);
-    const aiRes = await groqai.chat.completions.create({
-      model:"gpt-4o-mini",
-      messages:[
-        {role:"system",content:`Kamu asisten guru. Rapikan teks hasil OCR menjadi soal dan jawaban. Keluarkan JSON: {"soal":"...","jawaban":"..."}`},
-        {role:"user",content:cleaned}
-      ],
-      temperature:0.2,
-      max_tokens:800
-    });
-    let json;
-    try{ json=JSON.parse(aiRes.choices[0].message.content); }
-    catch{ json={soal:cleaned,jawaban:"Jawaban tidak bisa ditentukan"}}
-    res.json({soal:json.soal,jawaban:json.jawaban});
-  }catch(err){ console.error(err); res.json({soal:"",jawaban:"Gagal memproses AI"});}
+    const aiResult = await sendToGroq(cleaned);
+    res.json(aiResult);
+  }catch(err){
+    console.error(err);
+    res.json({soal:"",jawaban:"Gagal memproses AI"});
+  }
 });
 
-/* ================= DOWNLOAD WORD ================= */
+/* ===== DOWNLOAD WORD ===== */
 app.get("/download", async (req,res)=>{
   try{
     const doc = new Document({
@@ -134,6 +152,6 @@ app.get("/download", async (req,res)=>{
   }catch(err){ res.status(500).send("Gagal download Word"); }
 });
 
-/* ================= START SERVER ================= */
+/* ===== START SERVER ===== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT,()=>console.log("Server running on port "+PORT));
