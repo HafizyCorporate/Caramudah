@@ -4,34 +4,39 @@
 
 <h2>Scan Soal AI</h2>
 
-<input type="file" id="file">
-<button onclick="upload()">Proses</button>
+<input type="file" id="file" accept="image/*"><br><br>
 
-<pre id="soal"></pre>
+<input type="file" id="cam" accept="image/*" capture="environment"><br><br>
 
-<button onclick="exportWord()">Export Word</button>
+<button onclick="scan(file)">Proses File</button>
+<button onclick="scan(cam)">Proses Kamera</button>
+
+<h3>SOAL</h3>
+<pre id="ai"></pre>
+
+<button onclick="exportWord()">Download Word</button>
 <button onclick="window.print()">Print</button>
 
 <script>
-async function upload(){
+async function scan(input){
   const fd=new FormData();
-  fd.append("image",file.files[0]);
-  const r=await fetch("/upload",{method:"POST",body:fd});
+  fd.append("image",input.files[0]);
+  const r=await fetch("/scan",{method:"POST",body:fd});
   const j=await r.json();
-  soal.textContent=j.ai;
+  ai.textContent=j.ai;
 }
 
 async function exportWord(){
-  await fetch("/export",{
+  const r=await fetch("/export",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({soal:soal.textContent})
-  }).then(r=>r.blob()).then(b=>{
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(b);
-    a.download="soal.docx";
-    a.click();
+    body:JSON.stringify({text:ai.textContent})
   });
+  const b=await r.blob();
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(b);
+  a.download="soal.docx";
+  a.click();
 }
 </script>
 
