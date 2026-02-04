@@ -5,28 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scan Soal AI</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto; background:#0f172a; color:#e5e7eb; padding:20px }
-    .card { max-width:760px; margin:auto; background:#020617; padding:20px; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.4) }
-    h1 { margin:0 0 10px }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto; background:#0b1220; color:#e5e7eb; padding:16px }
+    .card { max-width:760px; margin:auto; background:#020617; padding:16px; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.4) }
+    h1 { font-size:22px; margin:6px 0 12px }
     .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
     @media (max-width: 640px){ .row{ grid-template-columns:1fr } }
-    input, textarea, button, select {
+    input, textarea, button {
       width:100%; margin:8px 0; padding:12px; border-radius:10px; border:1px solid #1f2933; background:#020617; color:#e5e7eb
     }
     textarea{ min-height:140px }
     button { background:#22c55e; color:#052e16; font-weight:700; cursor:pointer }
-    button:disabled{ opacity:.6; cursor:not-allowed }
+    .btn-secondary{ background:#0b1220; color:#e5e7eb; border:1px solid #1f2933 }
     .tips { font-size:12px; opacity:.85; margin-top:6px }
-    .badge{ display:inline-block; background:#0b1220; border:1px solid #1f2933; padding:6px 10px; border-radius:999px; font-size:12px }
     .footer { opacity:.7; font-size:12px; margin-top:10px }
   </style>
 </head>
 <body>
   <div class="card">
-    <span class="badge">📸 OCR + AI → Word</span>
     <h1>Scan Soal AI</h1>
 
-    <input type="file" id="imageInput" accept="image/*" capture="environment" />
+    <!-- Pilih dari kamera langsung -->
+    <label>📸 Ambil foto (kamera)</label>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple />
+
+    <!-- Pilih file dari HP -->
+    <label>🗂️ Pilih file dari HP</label>
+    <input type="file" id="fileInput" accept="image/*" multiple />
 
     <div class="row">
       <input type="number" id="pgCount" min="0" placeholder="Jumlah soal pilihan ganda" />
@@ -34,55 +38,63 @@
     </div>
 
     <div class="tips">
-      Tips: Foto harus terang, lurus menghadap kertas & tulisan (bukan miring ke arah soal/jawaban).
+      Tips: Foto harus terang, lurus menghadap kertas & tulisan (bukan miring ke arah soal/jawaban).  
+      Maksimal 5 foto/file.
     </div>
 
     <button id="processBtn" onclick="upload()">Proses</button>
 
-    <label>Soal (Preview)</label>
+    <label>Soal (Preview – hasil rangkuman AI)</label>
     <textarea id="soal" placeholder="Hasil soal akan muncul di sini..."></textarea>
 
-    <label>Jawaban (Preview)</label>
+    <label>Jawaban (Preview – hasil rangkuman AI)</label>
     <textarea id="jawaban" placeholder="Hasil jawaban akan muncul di sini..."></textarea>
 
-    <a id="downloadLink" target="_blank" style="display:none">⬇ Download Word (Soal & Jawaban terpisah halaman)</a>
+    <button id="downloadBtn" class="btn-secondary" style="display:none" onclick="downloadWord()">⬇ Download Word (rapih)</button>
+    <button id="printBtn" class="btn-secondary" style="display:none" onclick="window.print()">🖨️ Print</button>
 
-    <div class="footer">Powered by AI • Siap cetak Word</div>
+    <div class="footer">Siap cetak Word & print</div>
   </div>
 
   <script>
     async function upload() {
       const btn = document.getElementById("processBtn");
-      const file = document.getElementById("imageInput").files[0];
+      const cameraFiles = document.getElementById("cameraInput").files;
+      const fileFiles = document.getElementById("fileInput").files;
       const pgCount = document.getElementById("pgCount").value || 0;
       const essayCount = document.getElementById("essayCount").value || 0;
 
-      if (!file) return alert("Pilih foto dulu ya 📸");
+      const files = [...cameraFiles, ...fileFiles];
+      if (!files.length) return alert("Ambil foto atau pilih file dulu ya 📸");
+      if (files.length > 5) return alert("Maksimal 5 foto/file ya.");
 
       btn.disabled = true;
       btn.innerText = "Memproses...";
 
       const formData = new FormData();
-      formData.append("image", file);
+      files.forEach((f) => formData.append("images", f));
       formData.append("pgCount", pgCount);
       formData.append("essayCount", essayCount);
 
       try {
-        const res = await fetch("/upload", { method: "POST", body: formData });
+        const res = await fetch("/upload-multi", { method: "POST", body: formData });
         const data = await res.json();
 
         document.getElementById("soal").value = data.soal || "";
         document.getElementById("jawaban").value = data.jawaban || "";
 
-        const link = document.getElementById("downloadLink");
-        link.href = data.download;
-        link.style.display = "inline-block";
+        document.getElementById("downloadBtn").style.display = "block";
+        document.getElementById("printBtn").style.display = "block";
       } catch (e) {
         alert("Gagal memproses. Coba ulangi ya.");
       } finally {
         btn.disabled = false;
         btn.innerText = "Proses";
       }
+    }
+
+    function downloadWord() {
+      window.location.href = "/download";
     }
   </script>
 </body>
