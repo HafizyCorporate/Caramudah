@@ -1,10 +1,8 @@
-<!DOCTYPE html>
-<html>
-<body>
-<h2>Login</h2>
+<h3>Login</h3>
 <input id="email" placeholder="Email"><br>
 <input id="pass" type="password" placeholder="Password"><br>
 <button onclick="login()">Login</button>
+<a href="forgot.html">Lupa Password</a>
 
 <script>
 async function login(){
@@ -16,12 +14,7 @@ async function login(){
       password:pass.value
     })
   });
-  const j = await r.json();
-  if(j.success){
-    localStorage.userId=j.userId;
-    location.href="/index.html";
-  } else alert("Gagal");
+  if(r.ok) location="index.html";
+  else alert("Login gagal");
 }
 </script>
-</body>
-</html>
