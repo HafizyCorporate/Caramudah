@@ -1,163 +1,138 @@
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import bcrypt from "bcrypt";
-import Database from "better-sqlite3";
-import Tesseract from "tesseract.js";
-import fetch from "node-fetch";
-import nodemailer from "nodemailer";
-import { Document, Packer, Paragraph } from "docx";
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
+const bcrypt = require("bcrypt");
+const sqlite3 = require("sqlite3").verbose();
+const nodemailer = require("nodemailer");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ================= SAFE FOLDER ================= */
-// INI FIX ERROR EEXIST (PALING PENTING)
-function ensureDir(path) {
-  if (!fs.existsSync(path)) {
-    fs.mkdirSync(path, { recursive: true });
-  }
-}
-ensureDir("uploads");
-ensureDir("processed");
-
-/* ================= MIDDLEWARE ================= */
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+/* ================= BASIC ================= */
+app.use(cors());
+app.use(express.json());
 app.use(express.static("public"));
 
-/* ================= DATABASE ================= */
-const db = new Database("database.db");
-db.exec(`
-CREATE TABLE IF NOT EXISTS users(
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT UNIQUE,
-  password TEXT
-);
+/* ================= SAFE FOLDER (ANTI EEXIST) ================= */
+["uploads", "processed"].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
-CREATE TABLE IF NOT EXISTS results(
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  ocr TEXT,
-  ai TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-`);
+/* ================= MULTER ================= */
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, "uploads"),
+    filename: (req, file, cb) =>
+      cb(null, Date.now() + "-" + file.originalname)
+  })
+});
+
+/* ================= DATABASE ================= */
+const db = new sqlite3.Database("database.db");
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE,
+    password TEXT
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT,
+    token TEXT,
+    expires INTEGER
+  )`);
+});
+
+/* ================= EMAIL SMTP ================= */
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
 
 /* ================= AUTH ================= */
 app.post("/register", async (req, res) => {
   const { email, password } = req.body;
   const hash = await bcrypt.hash(password, 10);
-  try {
-    db.prepare("INSERT INTO users(email,password) VALUES (?,?)").run(email, hash);
-    res.json({ ok: true });
-  } catch {
-    res.status(400).json({ error: "Email sudah terdaftar" });
-  }
+  db.run(
+    "INSERT INTO users (email,password) VALUES (?,?)",
+    [email, hash],
+    err => {
+      if (err) return res.json({ error: "Email sudah terdaftar" });
+      res.json({ success: true });
+    }
+  );
 });
 
-app.post("/login", async (req, res) => {
-  const user = db.prepare("SELECT * FROM users WHERE email=?").get(req.body.email);
-  if (!user) return res.status(401).json({ error: "Login gagal" });
-
-  const valid = await bcrypt.compare(req.body.password, user.password);
-  if (!valid) return res.status(401).json({ error: "Login gagal" });
-
-  res.json({ ok: true, userId: user.id });
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  db.get("SELECT * FROM users WHERE email=?", [email], async (err, user) => {
+    if (!user) return res.json({ error: "User tidak ditemukan" });
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.json({ error: "Password salah" });
+    res.json({ success: true });
+  });
 });
 
-/* ================= EMAIL RESET ================= */
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+/* ================= FORGOT PASSWORD ================= */
+app.post("/forgot-password", (req, res) => {
+  const { email } = req.body;
+  const token = uuidv4();
+  const expires = Date.now() + 15 * 60 * 1000;
 
-app.post("/forgot", async (req, res) => {
-  const user = db.prepare("SELECT * FROM users WHERE email=?").get(req.body.email);
-  if (!user) return res.json({ ok: true });
+  db.run(
+    "INSERT INTO reset_tokens (email,token,expires) VALUES (?,?,?)",
+    [email, token, expires]
+  );
 
-  const newPass = Math.random().toString(36).slice(-8);
-  const hash = await bcrypt.hash(newPass, 10);
-  db.prepare("UPDATE users SET password=? WHERE id=?").run(hash, user.id);
+  const link = `${req.protocol}://${req.get("host")}/reset.html?token=${token}`;
 
-  await transporter.sendMail({
-    from: "Scan Soal AI",
-    to: req.body.email,
+  transporter.sendMail({
+    from: `"Scan Soal AI" <${process.env.SMTP_USER}>`,
+    to: email,
     subject: "Reset Password",
-    text: `Password baru kamu: ${newPass}`
+    html: `<p>Klik link reset password:</p><a href="${link}">${link}</a>`
   });
 
-  res.json({ ok: true });
+  res.json({ success: true });
 });
 
-/* ================= UPLOAD ================= */
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, "uploads"),
-  filename: (_, file, cb) =>
-    cb(null, Date.now() + "-" + file.originalname)
-});
-const upload = multer({ storage });
+/* ================= RESET PASSWORD ================= */
+app.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  db.get(
+    "SELECT * FROM reset_tokens WHERE token=? AND expires>?",
+    [token, Date.now()],
+    async (err, row) => {
+      if (!row) return res.json({ error: "Token tidak valid / expired" });
 
-/* ================= SCAN + GROQ ================= */
-app.post("/scan", upload.single("image"), async (req, res) => {
-  try {
-    const imagePath = req.file.path;
-
-    const ocrResult = await Tesseract.recognize(imagePath, "eng");
-    const text = ocrResult.data.text;
-
-    const groqRes = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [
-            {
-              role: "user",
-              content:
-                "Ubah teks berikut menjadi soal pilihan ganda dan essay lengkap dengan jawaban:\n\n" +
-                text
-            }
-          ]
-        })
-      }
-    );
-
-    const groqData = await groqRes.json();
-    const aiText = groqData.choices[0].message.content;
-
-    res.json({ ocr: text, ai: aiText });
-  } catch (err) {
-    res.status(500).json({ error: "Gagal memproses gambar" });
-  }
+      const hash = await bcrypt.hash(password, 10);
+      db.run("UPDATE users SET password=? WHERE email=?", [
+        hash,
+        row.email
+      ]);
+      db.run("DELETE FROM reset_tokens WHERE token=?", [token]);
+      res.json({ success: true });
+    }
+  );
 });
 
-/* ================= EXPORT WORD ================= */
-app.post("/export", async (req, res) => {
-  const doc = new Document({
-    sections: [
-      {
-        children: req.body.text
-          .split("\n")
-          .map(t => new Paragraph(t))
-      }
-    ]
-  });
-
-  const buffer = await Packer.toBuffer(doc);
-  res.setHeader("Content-Disposition", "attachment; filename=soal.docx");
-  res.send(buffer);
+/* ================= UPLOAD (DEMO) ================= */
+app.post("/upload", upload.array("images", 5), (req, res) => {
+  res.json({ success: true, files: req.files });
 });
 
-/* ================= RUN ================= */
-app.listen(PORT, () => {
-  console.log("SERVER RUNNING ON", PORT);
-});
+/* ================= START ================= */
+app.listen(PORT, () =>
+  console.log("SERVER RUNNING ON PORT", PORT)
+);
