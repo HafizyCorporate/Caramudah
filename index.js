@@ -17,22 +17,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-function lines(text) {
-  return (text || "").split("\n").map(s => s.trim()).filter(Boolean);
-}
-
-app.post("/upload-multi", upload.array("images", 5), async (req, res) => {
+app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
-    const files = req.files || [];
-    if (!files.length) return res.status(400).json({ error: "Tidak ada file" });
+    if (!req.files?.length) {
+      return res.status(400).json({ error: "File tidak ditemukan" });
+    }
 
-    const pgCount = Number(req.body.pgCount || 0);
-    const essayCount = Number(req.body.essayCount || 0);
+    const pg = req.body.pg || "0";
+    const essay = req.body.essay || "0";
 
-    let allText = "";
-    for (const f of files) {
-      const result = await Tesseract.recognize(f.path, "ind+eng");
-      allText += "\n" + (result.data.text || "");
+    let fullText = "";
+    for (const file of req.files) {
+      const result = await Tesseract.recognize(file.path, "ind+eng");
+      fullText += "\n" + (result.data.text || "");
     }
 
     const ai = await openai.chat.completions.create({
@@ -41,11 +38,24 @@ app.post("/upload-multi", upload.array("images", 5), async (req, res) => {
       messages: [
         {
           role: "system",
-          content:
-            "Keluarkan JSON valid TANPA teks lain. Format persis: {\"soal\":\"...\",\"jawaban\":\"...\"}. " +
-            "Pisahkan baris dengan newline. Soal PG dulu, lalu Essay. Jawaban PG dulu (A/B/C/D), lalu jawaban Essay."
+          content: `Pisahkan soal dan jawaban dari teks OCR.
+Format JSON valid saja:
+{"soal":"...","jawaban":"..."}
+Jumlah pilihan ganda: ${pg}
+Jumlah essay: ${essay}
+
+Format soal:
+1. Soal PG
+   A. ...
+   B. ...
+   C. ...
+   D. ...
+
+Lanjut soal essay.
+
+Jawaban di halaman terpisah.`
         },
-        { role: "user", content: allText }
+        { role: "user", content: fullText }
       ]
     });
 
@@ -53,57 +63,23 @@ app.post("/upload-multi", upload.array("images", 5), async (req, res) => {
     try {
       json = JSON.parse(ai.choices[0].message.content);
     } catch {
-      json = { soal: allText, jawaban: "" };
+      json = { soal: fullText, jawaban: "" };
     }
-
-    const soalLines = lines(json.soal);
-    const jawabanLines = lines(json.jawaban);
-
-    const pgSoal = soalLines.slice(0, pgCount);
-    const essaySoal = soalLines.slice(pgCount, pgCount + essayCount);
-
-    const pgJawaban = jawabanLines.slice(0, pgCount);
-    const essayJawaban = jawabanLines.slice(pgCount, pgCount + essayCount);
-
-    const soalChildren = [
-      new Paragraph({ text: "SOAL - PILIHAN GANDA", heading: HeadingLevel.HEADING_1 }),
-    ];
-
-    pgSoal.forEach((q, i) => {
-      soalChildren.push(new Paragraph(`${i + 1}. ${q}`));
-      soalChildren.push(new Paragraph("   A. "));
-      soalChildren.push(new Paragraph("   B. "));
-      soalChildren.push(new Paragraph("   C. "));
-      soalChildren.push(new Paragraph("   D. "));
-    });
-
-    soalChildren.push(new Paragraph(""));
-    soalChildren.push(new Paragraph({ text: "SOAL - ESSAY", heading: HeadingLevel.HEADING_1 }));
-
-    essaySoal.forEach((q, i) => {
-      soalChildren.push(new Paragraph(`${i + 1}. ${q}`));
-      soalChildren.push(new Paragraph(""));
-    });
-
-    const jawabanChildren = [
-      new Paragraph({ text: "JAWABAN - PILIHAN GANDA", heading: HeadingLevel.HEADING_1 }),
-    ];
-
-    pgJawaban.forEach((a, i) => {
-      jawabanChildren.push(new Paragraph(`${i + 1}. ${a}`));
-    });
-
-    jawabanChildren.push(new Paragraph(""));
-    jawabanChildren.push(new Paragraph({ text: "JAWABAN - ESSAY", heading: HeadingLevel.HEADING_1 }));
-
-    essayJawaban.forEach((a, i) => {
-      jawabanChildren.push(new Paragraph(`${i + 1}. ${a}`));
-    });
 
     const doc = new Document({
       sections: [
-        { children: soalChildren },     // Halaman 1: Soal
-        { children: jawabanChildren },  // Halaman 2: Jawaban
+        {
+          children: [
+            newnew Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph(json.soal || ""),
+          ],
+        },
+        {
+          children: [
+            new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph(json.jawaban || ""),
+          ],
+        },
       ],
     });
 
@@ -112,8 +88,7 @@ app.post("/upload-multi", upload.array("images", 5), async (req, res) => {
 
     res.json({
       soal: json.soal || "",
-      jawaban: json.jawaban || "",
-      download: "/download"
+      jawaban: json.jawaban || ""
     });
 
   } catch (e) {
