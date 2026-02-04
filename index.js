@@ -16,11 +16,13 @@ const GROQ_MODEL = "llama-3.1-70b-versatile";
 
 // ===== DATABASE =====
 const db = new sqlite3.Database("database.db");
+
 db.run(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE,
   password TEXT
 )`);
+
 db.run(`CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
@@ -39,15 +41,26 @@ app.use(session({
   saveUninitialized: false
 }));
 
+// ===== STORAGE =====
 const upload = multer({ dest: "uploads/" });
 
-// ===== AUTH =====
-app.post("/login", async (req, res) => {
+// ===== REGISTER =====
+app.post("/register", async (req, res) => {
+  const { email, password } = req.body;
+  const hash = await bcrypt.hash(password, 10);
+  db.run(
+    "INSERT INTO users (email, password) VALUES (?,?)",
+    [email, hash],
+    err => err ? res.status(400).json({ error: "User sudah ada" }) : res.json({ success: true })
+  );
+});
+
+// ===== LOGIN =====
+app.post("/login", (req, res) => {
   const { email, password } = req.body;
   db.get("SELECT * FROM users WHERE email=?", [email], async (err, user) => {
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ error: "Login gagal" });
-    }
     req.session.user = user;
     res.json({ success: true });
   });
@@ -56,29 +69,21 @@ app.post("/login", async (req, res) => {
 // ===== PROCESS =====
 app.post("/process", upload.array("images", 5), async (req, res) => {
   try {
-    if (!req.session.user) {
-      return res.status(401).json({ error: "Harus login" });
+    if (!req.session.user) return res.status(401).json({ error: "Harus login" });
+    if (!req.files.length) return res.json({ soal: "", jawaban: "Tidak ada gambar." });
+
+    let soal = "";
+
+    for (const f of req.files) {
+      const fixed = `processed/${f.filename}.jpg`;
+      await sharp(f.path).rotate().grayscale().normalize().toFile(fixed);
+      const ocr = await Tesseract.recognize(fixed, "ind+eng");
+      soal += "\n" + ocr.data.text;
+      fs.unlinkSync(f.path);
+      fs.unlinkSync(fixed);
     }
 
-    let text = "";
-
-    for (const file of req.files) {
-      const processed = `processed/${file.filename}.jpg`;
-
-      await sharp(file.path)
-        .rotate()
-        .grayscale()
-        .normalize()
-        .toFile(processed);
-
-      const result = await Tesseract.recognize(processed, "ind+eng");
-      text += "\n" + result.data.text;
-
-      fs.unlinkSync(file.path);
-      fs.unlinkSync(processed);
-    }
-
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const groq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${GROQ_API_KEY}`,
@@ -88,26 +93,38 @@ app.post("/process", upload.array("images", 5), async (req, res) => {
         model: GROQ_MODEL,
         messages: [
           { role: "system", content: "Kamu adalah asisten guru." },
-          { role: "user", content: text }
+          { role: "user", content: soal }
         ],
         temperature: 0.2
       })
     });
 
-    const ai = await groqRes.json();
+    const ai = await groq.json();
     const jawaban = ai.choices[0].message.content;
 
     db.run(
       "INSERT INTO history (user_id, soal, jawaban) VALUES (?,?,?)",
-      [req.session.user.id, text, jawaban]
+      [req.session.user.id, soal, jawaban]
     );
 
-    res.json({ soal: text, jawaban });
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
+          new Paragraph(soal),
+          new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
+          new Paragraph(jawaban)
+        ]
+      }]
+    });
 
-  } catch (e) {
-    console.error(e);
+    fs.writeFileSync("hasil.docx", await Packer.toBuffer(doc));
+
+    res.json({ soal, jawaban, download: "/download" });
+  } catch {
     res.status(500).json({ error: "Gagal proses" });
   }
 });
 
-app.listen(PORT, () => console.log("🔥 Server ready di port " + PORT));
+app.get("/download", (req, res) => res.download("hasil.docx"));
+app.listen(PORT, () => console.log("🔥 FULL SYSTEM READY"));
