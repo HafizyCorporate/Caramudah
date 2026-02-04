@@ -1,0 +1,17 @@
+{
+  "name": "ai-soal-hp",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "docx": "^8.5.0",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.52.0",
+    "tesseract.js": "^5.1.0"
+  }
+}
