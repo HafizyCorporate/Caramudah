@@ -1,112 +1,78 @@
 import express from "express";
-import session from "express-session";
-import SQLiteStore from "connect-sqlite3";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
-import sqlite3 from "sqlite3";
-import { GroqAI } from "groqai-sdk"; // ganti sesuai versi SDK
-import { Document, Packer, Paragraph } from "docx";
+import session from "express-session";
+import SQLiteStore from "connect-sqlite3";
+import bodyParser from "body-parser";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = 3000;
 
-// Body & static
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
+// Buat folder uploads & processed kalau belum ada
+["uploads", "processed"].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+});
 
-// Session
+// Setup session SQLite
 app.use(session({
-  store: new (SQLiteStore(session))({ db: "sessions.db" }),
-  secret: "secretkey",
+  store: new (SQLiteStore(session))({ db: "database.db", dir: "./" }),
+  secret: "secretkey123",
   resave: false,
   saveUninitialized: true
 }));
 
-// Database
-const db = new sqlite3.Database("./database.db");
-db.serialize(() => {
-  db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)");
-});
+// Middleware
+app.use(express.static("public"));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// Upload folders
-["uploads","processed"].forEach(folder => {
-  if (!fs.existsSync(folder)) fs.mkdirSync(folder);
-});
-
-// Multer
+// Multer upload
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "./uploads"),
+  destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage });
 
-// Groq AI init
-const ai = new GroqAI({ apiKey: process.env.GROQ_API_KEY });
+// Mock database users
+let users = [{ email: "admin@example.com", password: "1234" }];
+
+// Mock AI function
+async function processImage(filePath, numMCQ = 5, numEssay = 2) {
+  return {
+    soal: `Contoh soal MCQ ${numMCQ} & Essay ${numEssay} dari file ${filePath}`,
+    jawaban: `Contoh jawaban dari file ${filePath}`
+  };
+}
 
 // Routes
-
-// REGISTER
-app.post("/register", (req,res) => {
+app.post("/login", (req, res) => {
   const { email, password } = req.body;
-  db.run("INSERT INTO users(email,password) VALUES(?,?)", [email,password], err => {
-    res.json({ success: !err, message: err ? err.message : "Berhasil daftar!" });
-  });
+  const user = users.find(u => u.email === email && u.password === password);
+  if (user) {
+    req.session.user = email;
+    res.json({ success: true });
+  } else res.json({ success: false, message: "Email atau password salah" });
 });
 
-// LOGIN
-app.post("/login", (req,res) => {
+app.post("/register", (req, res) => {
   const { email, password } = req.body;
-  db.get("SELECT * FROM users WHERE email=? AND password=?", [email,password], (err,row)=>{
-    if(row) req.session.user = row.id;
-    res.json({ success: !!row, message: row ? "Login berhasil" : "Email/password salah" });
-  });
+  if (users.find(u => u.email === email)) return res.json({ success: false, message: "Email sudah terdaftar" });
+  users.push({ email, password });
+  res.json({ success: true });
 });
 
-// FORGOT PASSWORD
-app.post("/forgot-password", (req,res)=>{
+app.post("/forgot", (req, res) => {
   const { email } = req.body;
-  db.get("SELECT password FROM users WHERE email=?", [email], (err,row)=>{
-    res.json({ success: !!row, password: row ? row.password : null, message: row ? "Password ditemukan" : "Email tidak terdaftar" });
-  });
+  const user = users.find(u => u.email === email);
+  if (user) res.json({ success: true, password: user.password });
+  else res.json({ success: false, message: "Email tidak ditemukan" });
 });
 
-// UPLOAD & PROCESS IMAGE
-app.post("/process", upload.array("files",5), async (req,res)=>{
-  try{
-    const files = req.files;
-    if(!files || !files.length) return res.json({ success:false, message:"File kosong" });
-
-    let soalText = "";
-    for(const f of files){
-      // Proses ke Groq AI
-      const txt = await ai.extractTextFromImage(fs.readFileSync(f.path)); 
-      soalText += txt + "\n";
-      fs.renameSync(f.path, path.join("processed", path.basename(f.path))); // pindah file
-    }
-
-    // Dummy parsing: AI bikin pilihan ganda & essay
-    const soal = { pilihan_ganda: soalText.slice(0,200), essay: soalText.slice(200,400) };
-    res.json({ success:true, soal });
-  }catch(e){
-    res.json({ success:false, message:e.message });
-  }
+app.post("/upload", upload.single("file"), async (req, res) => {
+  const { numMCQ, numEssay } = req.body;
+  const result = await processImage(req.file.path, numMCQ, numEssay);
+  res.json(result);
 });
 
-// EXPORT WORD
-app.post("/export-word", async (req,res)=>{
-  const { soal, jawaban } = req.body;
-  const doc = new Document();
-  doc.addSection({ children:[
-    new Paragraph("SOAL:"),
-    new Paragraph(soal || ""),
-    new Paragraph("JAWABAN:"),
-    new Paragraph(jawaban || "")
-  ]});
-  const buffer = await Packer.toBuffer(doc);
-  res.setHeader("Content-Disposition","attachment; filename=soal.docx");
-  res.send(buffer);
-});
-
-app.listen(PORT, ()=>console.log("Server jalan di "+PORT));
+app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
