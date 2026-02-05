@@ -1,18 +1,17 @@
 {
-  "name": "scan-soal-ai-final",
+  "name": "scan-soal-ai",
   "version": "1.0.0",
-  "description": "Scan soal AI mock dengan preview, print & Word",
   "type": "module",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "multer": "^1.4.5",
-    "sqlite3": "^5.1.6",
     "express-session": "^1.17.3",
+    "sqlite3": "^5.1.6",
     "connect-sqlite3": "^0.9.0",
-    "cors": "^2.8.5",
-    "body-parser": "^1.20.2"
+    "multer": "^1.4.5-lts.1",
+    "docx": "^7.6.1"
   }
 }
