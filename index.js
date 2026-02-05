@@ -11,12 +11,18 @@ import sqlite3 from "sqlite3";
 
 // ===== Database setup =====
 const db = new sqlite3.Database("./database.db");
-db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)");
+db.run(`
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE,
+  password TEXT
+)`);
 
-// ===== Folder check =====
+// ===== Folder check aman =====
 fs.mkdirSync("./uploads", { recursive: true });
 fs.mkdirSync("./processed", { recursive: true });
 
+// ===== Express setup =====
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -27,6 +33,7 @@ app.use(session({
   saveUninitialized: true
 }));
 
+// ===== Multer upload =====
 const upload = multer({ dest: "uploads/" });
 
 // ===== Mock GroqAI =====
@@ -54,7 +61,8 @@ function cleanOCR(text) {
 // ===== Upload & Process =====
 app.post("/upload", upload.array("images", 5), async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) return res.status(400).json({ error: "Tidak ada file diupload" });
+    if (!req.files || req.files.length === 0)
+      return res.status(400).json({ error: "Tidak ada file diupload" });
 
     let fullText = "";
     for (const file of req.files) {
@@ -68,7 +76,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     const aiRes = await groqai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Rapikan OCR menjadi soal singkat, buat jawaban, keluarkan JSON: {soal,jawaban}" },
+        { role: "system", content: "Rapikan OCR jadi soal singkat, buat jawaban, keluarkan JSON: {soal,jawaban}" },
         { role: "user", content: cleanedText }
       ]
     });
@@ -78,13 +86,15 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     catch { json = { soal: cleanedText, jawaban: "Jawaban tidak tersedia" }; }
 
     const doc = new Document({
-      sections: [{ children: [
-        new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
-        new Paragraph(json.soal || ""),
-        new Paragraph({ children: [new PageBreak()] }),
-        new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
-        new Paragraph(json.jawaban || "")
-      ]}]
+      sections: [{
+        children: [
+          new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
+          new Paragraph(json.soal || ""),
+          new Paragraph({ children: [new PageBreak()] }),
+          new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
+          new Paragraph(json.jawaban || "")
+        ]
+      }]
     });
 
     const buffer = await Packer.toBuffer(doc);
@@ -93,7 +103,7 @@ app.post("/upload", upload.array("images", 5), async (req, res) => {
     res.json({ soal: json.soal, jawaban: json.jawaban, download: "/download" });
   } catch (e) {
     console.error("UPLOAD ERROR:", e);
-    res.status(500).json({ error: "Gagal proses gambar/AI error" });
+    res.status(500).json({ error: "Gagal proses gambar / AI error" });
   }
 });
 
@@ -105,26 +115,33 @@ app.get("/download", (req, res) => {
 });
 
 // ===== Register/Login =====
-app.post("/register", async (req,res)=>{
+app.post("/register", async (req, res) => {
   const { email, password } = req.body;
-  const hash = await bcrypt.hash(password,10);
-  db.run("INSERT INTO users(email,password) VALUES(?,?)",[email,hash], function(err){
-    if(err) return res.status(400).json({error:"Email sudah terdaftar"});
-    res.json({success:true});
+  const hash = await bcrypt.hash(password, 10);
+  db.run("INSERT INTO users(email,password) VALUES(?,?)", [email, hash], function(err) {
+    if (err) return res.status(400).json({ error: "Email sudah terdaftar" });
+    res.json({ success: true });
   });
 });
 
-app.post("/login", (req,res)=>{
+app.post("/login", (req, res) => {
   const { email, password } = req.body;
-  db.get("SELECT * FROM users WHERE email=?",[email], async (err,row)=>{
-    if(!row) return res.status(400).json({error:"Email tidak ditemukan"});
-    const match = await bcrypt.compare(password,row.password);
-    if(!match) return res.status(400).json({error:"Password salah"});
+  db.get("SELECT * FROM users WHERE email=?", [email], async (err, row) => {
+    if (!row) return res.status(400).json({ error: "Email tidak ditemukan" });
+    const match = await bcrypt.compare(password, row.password);
+    if (!match) return res.status(400).json({ error: "Password salah" });
     req.session.userId = row.id;
-    res.json({success:true});
+    res.json({ success: true });
   });
+});
+
+// ===== Forgot Password (dummy email) =====
+app.post("/forgot", (req, res) => {
+  const { email } = req.body;
+  // Disini bisa dihubungkan email service
+  res.json({ success: true, message: `Link reset password dikirim ke ${email} (dummy)` });
 });
 
 // ===== Start server =====
 const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>console.log("Server running on port "+PORT));
+app.listen(PORT, () => console.log("Server running on port " + PORT));
