@@ -1,79 +1,62 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scan Soal AI</title>
 <style>
-body { font-family: Arial; background:#f4f4f4; padding:20px; }
-h1 { text-align:center; }
-.container { max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-input, button, select { margin-top:10px; width:100%; padding:10px; font-size:16px; border-radius:4px; border:1px solid #ccc; }
-button { cursor:pointer; background:#4CAF50; color:#fff; border:none; }
-button:hover { background:#45a049; }
-#soal, #jawaban { margin-top:20px; padding:10px; background:#e8f0fe; border-radius:4px; white-space:pre-wrap; }
+body{font-family:sans-serif;margin:10px;padding:0} 
+h2{margin-top:20px} 
+button,input,select{margin:5px 0;padding:8px;width:100%;max-width:400px;box-sizing:border-box}
+textarea{width:100%;max-width:400px;height:150px;margin-top:5px}
+.review-box{border:1px solid #ccc;padding:10px;margin-top:10px}
 </style>
 </head>
 <body>
-<h1>Scan Soal & Jawaban AI</h1>
-<div class="container">
-  <label>Pilih File</label>
-  <input type="file" id="fileInput">
+<h2>Scan Soal AI</h2>
 
-  <label>Ambil dari Kamera</label>
-  <input type="file" id="cameraInput" capture="environment">
+<label>Ambil Gambar / File:</label>
+<input type="file" id="fileInput" accept="image/*" capture="camera">
 
-  <label>Jumlah Soal Pilihan Ganda</label>
-  <input type="number" id="numMCQ" value="5">
+<label>Jumlah Pilihan Ganda:</label>
+<input type="number" id="pgCount" value="2">
 
-  <label>Jumlah Soal Essay</label>
-  <input type="number" id="numEssay" value="2">
+<label>Jumlah Essay:</label>
+<input type="number" id="essayCount" value="2">
 
-  <button id="processBtn">Proses</button>
+<button id="processBtn">Proses Soal</button>
 
-  <div id="soal"><strong>SOAL Preview:</strong></div>
-  <div id="jawaban"><strong>JAWABAN Preview:</strong></div>
+<h2>Preview Soal</h2>
+<div class="review-box" id="reviewBox"></div>
 
-  <button id="printBtn">Print</button>
-  <button id="wordBtn">Export Word</button>
-</div>
+<button id="printBtn">Print Langsung</button>
+<button id="wordBtn">Export Word</button>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script>
 const fileInput = document.getElementById("fileInput");
-const cameraInput = document.getElementById("cameraInput");
 const processBtn = document.getElementById("processBtn");
-const soalDiv = document.getElementById("soal");
-const jawabanDiv = document.getElementById("jawaban");
-const numMCQInput = document.getElementById("numMCQ");
-const numEssayInput = document.getElementById("numEssay");
+const reviewBox = document.getElementById("reviewBox");
+const printBtn = document.getElementById("printBtn");
+const wordBtn = document.getElementById("wordBtn");
+const pgInput = document.getElementById("pgCount");
+const essayInput = document.getElementById("essayCount");
 
-processBtn.onclick = async () => {
-  const file = fileInput.files[0] || cameraInput.files[0];
-  if (!file) return alert("Pilih file terlebih dahulu!");
+processBtn.onclick = async ()=>{
+  if(!fileInput.files[0]) return alert("Pilih file dulu");
   const formData = new FormData();
-  formData.append("file", file);
-  formData.append("numMCQ", numMCQInput.value);
-  formData.append("numEssay", numEssayInput.value);
+  formData.append("file", fileInput.files[0]);
+  formData.append("pg", pgInput.value);
+  formData.append("essay", essayInput.value);
 
-  const res = await fetch("/upload", { method:"POST", body:formData });
+  const res = await fetch("/process", { method:"POST", body:formData });
   const data = await res.json();
-  soalDiv.innerText = "SOAL:\n" + data.soal;
-  jawabanDiv.innerText = "JAWABAN:\n" + data.jawaban;
+  reviewBox.innerHTML="";
+  if(data.pg) data.pg.forEach((q,i)=>reviewBox.innerHTML+=`<b>PG ${i+1}:</b> ${q.pertanyaan} <br><i>Jawaban: ${q.jawaban}</i><br>`);
+  if(data.essay) data.essay.forEach((q,i)=>reviewBox.innerHTML+=`<b>Essay ${i+1}:</b> ${q.pertanyaan} <br><i>Jawaban: ${q.jawaban}</i><br>`);
 };
 
-// Print
-document.getElementById("printBtn").onclick = () => {
-  const printWindow = window.open("", "", "width=800,height=600");
-  printWindow.document.write("<pre>"+soalDiv.innerText+"\n\n"+jawabanDiv.innerText+"</pre>");
-  printWindow.print();
-};
-
-// Export Word
-document.getElementById("wordBtn").onclick = () => {
-  const blob = new Blob([soalDiv.innerText+"\n\n"+jawabanDiv.innerText], { type: "application/msword" });
-  saveAs(blob, "soal.doc");
-};
+printBtn.onclick = ()=>{ window.print(); }
+wordBtn.onclick = ()=>{ window.location="/export-word"; }
 </script>
 </body>
 </html>
