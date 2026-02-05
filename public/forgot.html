@@ -1,14 +1,14 @@
-<h3>Lupa Password</h3>
-<input id="email" placeholder="Email">
-<button onclick="reset()">Reset</button>
-
-<script>
-async function reset(){
-  await fetch("/forgot",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({email:email.value})
-  });
-  alert("Cek email");
-}
-</script>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lupa Password</title>
+</head>
+<body>
+<h2>Lupa Password</h2>
+<form action="/forgot" method="POST">
+  <input type="email" name="email" placeholder="Email" required /><br/>
+  <button type="submit">Kirim Email Reset</button>
+</form>
+<p><a href="/login.html">Login</a></p>
+</body>
+</html>
