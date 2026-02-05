@@ -1,123 +1,133 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scan Soal AI - Full</title>
-<style>
-body { font-family: Arial, sans-serif; padding:20px; background:#f4f4f4; }
-h1 { text-align:center; color:#333; margin-bottom:20px; }
-.container { max-width:700px; margin:auto; background:#fff; padding:30px; border-radius:12px; box-shadow:0 0 15px rgba(0,0,0,0.1);}
-input, button { width:100%; padding:14px; margin-top:12px; font-size:16px; border-radius:6px; border:1px solid #ccc;}
-button { cursor:pointer; transition:0.3s;}
-button:hover { opacity:0.9; }
-.loginBtn { background:#4CAF50; color:#fff; border:none; }
-.registerBtn { background:#2196F3; color:#fff; border:none; }
-.forgotBtn { background:#f44336; color:#fff; border:none; }
-.uploadBtn { background:#ff9800; color:#fff; border:none; }
-#downloadBtn { background:#9c27b0; color:#fff; margin-top:15px; }
-
-#soal, #jawaban { margin-top:20px; padding:15px; background:#e8f0fe; border-radius:6px; white-space: pre-wrap; min-height:80px; }
-
-.hidden { display:none; }
-.tips { font-size:14px; color:#555; margin-bottom:15px; }
-label { font-weight:bold; display:block; margin-top:12px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan Soal AI</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; color: #333; }
+    .container { max-width: 700px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, button { margin-top: 10px; width: 100%; padding: 10px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; }
+    button { cursor: pointer; background: #4CAF50; color: #fff; border: none; }
+    button:hover { background: #45a049; }
+    #soal, #jawaban { margin-top: 20px; padding: 10px; background: #e8f0fe; border-radius: 4px; white-space: pre-wrap; min-height: 80px; }
+    .tips { font-size: 14px; color: #555; margin-top: 10px; }
+    .section { margin-top: 20px; }
+  </style>
 </head>
 <body>
+  <h1>Scan Soal & Jawaban AI</h1>
+  <div class="container">
 
-<h1>Scan Soal AI</h1>
-<div class="container">
+    <!-- LOGIN -->
+    <div class="section" id="loginSection">
+      <h2>Login</h2>
+      <input type="email" id="loginEmail" placeholder="Email">
+      <input type="password" id="loginPassword" placeholder="Password">
+      <button id="loginBtn">Login</button>
+      <button id="gotoRegisterBtn" style="background:#2196F3;">Daftar Baru</button>
+    </div>
 
-<!-- LOGIN / REGISTER -->
-<div id="authDiv">
-  <input id="email" placeholder="Email" type="email">
-  <input id="password" placeholder="Password" type="password">
-  <button class="loginBtn" onclick="login()">Login</button>
-  <button class="registerBtn" onclick="showRegister()">Daftar / Register</button>
-  <button class="forgotBtn" onclick="forgot()">Lupa Password</button>
+    <!-- REGISTER -->
+    <div class="section" id="registerSection" style="display:none;">
+      <h2>Daftar</h2>
+      <input type="email" id="regEmail" placeholder="Email">
+      <input type="password" id="regPassword" placeholder="Password">
+      <button id="registerBtn">Daftar</button>
+      <button id="gotoLoginBtn" style="background:#2196F3;">Login</button>
+    </div>
 
-  <div id="registerDiv" class="hidden">
-    <h3>Daftar Baru</h3>
-    <input id="regEmail" placeholder="Email" type="email">
-    <input id="regPassword" placeholder="Password" type="password">
-    <button class="registerBtn" onclick="register()">Daftar Sekarang</button>
+    <!-- UPLOAD & PROSES -->
+    <div class="section" id="uploadSection" style="display:none;">
+      <p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
+      <label>Pilih File (max 5 gambar)</label>
+      <input type="file" id="fileInput" multiple accept="image/*">
+      <label>Ambil Foto Langsung</label>
+      <input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
+      <button id="processBtn">Proses</button>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="section" id="previewSection" style="display:none;">
+      <div id="soal"><strong>SOAL Preview:</strong>\n</div>
+      <div id="jawaban"><strong>JAWABAN Preview:</strong>\n</div>
+      <button id="downloadBtn" style="background:#2196F3;">Download Word</button>
+    </div>
+
   </div>
-</div>
-
-<!-- UPLOAD & AI -->
-<div id="aiDiv" class="hidden">
-  <p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
-  
-  <label>Pilih File (max 5 gambar)</label>
-  <input type="file" id="fileInput" multiple accept="image/*">
-
-  <label>Ambil Foto Langsung</label>
-  <input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
-
-  <button class="uploadBtn" id="processBtn">Proses Gambar & AI</button>
-  <button id="downloadBtn">Download Word</button>
-
-  <div id="soal"><strong>SOAL Preview:</strong>\n</div>
-  <div id="jawaban"><strong>JAWABAN Preview:</strong>\n</div>
-</div>
-
-</div>
 
 <script>
-/* ================= AUTH ================= */
-function showRegister(){ document.getElementById("registerDiv").classList.remove("hidden"); }
+  /* ===== LOGIN & REGISTER ===== */
+  const loginSection = document.getElementById("loginSection");
+  const registerSection = document.getElementById("registerSection");
+  const uploadSection = document.getElementById("uploadSection");
+  const previewSection = document.getElementById("previewSection");
 
-function login(){
-  fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({email:email.value,password:password.value})})
-  .then(r=>r.json()).then(res=>{
-    if(res.success){
-      alert("Login berhasil");
-      document.getElementById("authDiv").classList.add("hidden");
-      document.getElementById("aiDiv").classList.remove("hidden");
-    } else alert(res.error)
+  document.getElementById("gotoRegisterBtn").onclick = ()=>{
+    loginSection.style.display="none";
+    registerSection.style.display="block";
+  };
+  document.getElementById("gotoLoginBtn").onclick = ()=>{
+    registerSection.style.display="none";
+    loginSection.style.display="block";
+  };
+
+  document.getElementById("loginBtn").onclick = async ()=>{
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+    const res = await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+    const data = await res.json();
+    if(data.success){
+      loginSection.style.display="none";
+      uploadSection.style.display="block";
+    } else alert(data.error);
+  };
+
+  document.getElementById("registerBtn").onclick = async ()=>{
+    const email = document.getElementById("regEmail").value;
+    const password = document.getElementById("regPassword").value;
+    const res = await fetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+    const data = await res.json();
+    if(data.success){
+      alert("Berhasil daftar, silakan login");
+      registerSection.style.display="none";
+      loginSection.style.display="block";
+    } else alert(data.error);
+  };
+
+  /* ===== UPLOAD + AI PROCESS ===== */
+  const fileInput = document.getElementById("fileInput");
+  const cameraInput = document.getElementById("cameraInput");
+  const processBtn = document.getElementById("processBtn");
+  const soalDiv = document.getElementById("soal");
+  const jawabanDiv = document.getElementById("jawaban");
+
+  processBtn.addEventListener("click", async ()=>{
+    const files = [...fileInput.files,...cameraInput.files];
+    if(files.length===0){ alert("Pilih file dulu!"); return; }
+
+    // Upload ke server
+    const formData = new FormData();
+    files.forEach(f=> formData.append("images", f));
+    const uploadRes = await fetch("/upload",{method:"POST",body:formData});
+    const uploadData = await uploadRes.json();
+    if(!uploadData.success){ alert("Upload gagal"); return; }
+
+    // Proses AI
+    const fileNames = uploadData.files.map(f=> f.filename);
+    const aiRes = await fetch("/process-ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({files:fileNames})});
+    const aiData = await aiRes.json();
+
+    soalDiv.innerText = "SOAL Preview:\n" + (aiData.soal||"");
+    jawabanDiv.innerText = "JAWABAN Preview:\n" + (aiData.jawaban||"");
+    previewSection.style.display="block";
   });
-}
 
-function register(){
-  fetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({email:regEmail.value,password:regPassword.value})})
-  .then(r=>r.json()).then(res=>alert(res.error||"Daftar berhasil"));
-}
-
-function forgot(){
-  fetch("/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({email:email.value})})
-  .then(r=>r.json()).then(()=>alert("Email reset dikirim"));
-}
-
-/* ================= UPLOAD + AI ================= */
-async function uploadImages(files){
-  const formData = new FormData();
-  for(let i=0;i<files.length;i++) formData.append("images", files[i]);
-  return await fetch("/upload",{method:"POST",body:formData}).then(r=>r.json());
-}
-
-document.getElementById("processBtn").addEventListener("click", async ()=>{
-  const files=[...document.getElementById("fileInput").files,...document.getElementById("cameraInput").files];
-  if(files.length===0){ alert("Pilih gambar dulu"); return; }
-
-  const res = await uploadImages(files);
-  if(res.success){
-    const aiRes = await fetch("/process-ai",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ files:res.files.map(f=>f.filename) })
-    }).then(r=>r.json());
-
-    document.getElementById("soal").textContent = "SOAL:\n"+aiRes.soal;
-    document.getElementById("jawaban").textContent = "JAWABAN:\n"+aiRes.jawaban;
-  } else alert("Upload gagal");
-});
-
-document.getElementById("downloadBtn").addEventListener("click",()=>{ window.location.href="/download"; });
+  /* ===== DOWNLOAD WORD ===== */
+  document.getElementById("downloadBtn").onclick = ()=>{
+    window.location.href="/download";
+  };
 </script>
-
 </body>
 </html>
