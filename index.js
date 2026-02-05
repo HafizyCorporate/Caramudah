@@ -14,8 +14,8 @@ const db = new sqlite3.Database("./database.db");
 db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)");
 
 // ===== Folder check =====
-if (!fs.existsSync("./uploads")) fs.mkdirSync("./uploads");
-if (!fs.existsSync("./processed")) fs.mkdirSync("./processed");
+fs.mkdirSync("./uploads", { recursive: true });
+fs.mkdirSync("./processed", { recursive: true });
 
 const app = express();
 app.use(cors());
