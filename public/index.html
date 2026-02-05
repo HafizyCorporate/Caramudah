@@ -5,58 +5,75 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scan Soal AI</title>
 <style>
-body { font-family: Arial,sans-serif; padding:20px; background:#f4f4f4;}
-h1{text-align:center;color:#333;}
-.container{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
-input,button{margin-top:10px;width:100%;padding:10px;font-size:16px;border-radius:4px;border:1px solid #ccc;}
-button{cursor:pointer;background:#4CAF50;color:#fff;border:none;}
-button:hover{background:#45a049;}
-#soal,#jawaban{margin-top:20px;padding:10px;background:#e8f0fe;border-radius:4px;white-space:pre-wrap;}
-.tips{font-size:14px;color:#555;margin-top:10px;}
+body { font-family: Arial; background:#f4f4f4; padding:20px; }
+h1 { text-align:center; }
+.container { max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+input, button, select { margin-top:10px; width:100%; padding:10px; font-size:16px; border-radius:4px; border:1px solid #ccc; }
+button { cursor:pointer; background:#4CAF50; color:#fff; border:none; }
+button:hover { background:#45a049; }
+#soal, #jawaban { margin-top:20px; padding:10px; background:#e8f0fe; border-radius:4px; white-space:pre-wrap; }
 </style>
 </head>
 <body>
 <h1>Scan Soal & Jawaban AI</h1>
 <div class="container">
-<p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
-<label>Pilih File (max 5 gambar)</label>
-<input type="file" id="fileInput" multiple accept="image/*">
-<label>Ambil Foto Langsung</label>
-<input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
-<button id="processBtn">Proses</button>
+  <label>Pilih File</label>
+  <input type="file" id="fileInput">
 
-<div id="soal"><strong>SOAL Preview:</strong></div>
-<div id="jawaban"><strong>JAWABAN Preview:</strong></div>
+  <label>Ambil dari Kamera</label>
+  <input type="file" id="cameraInput" capture="environment">
 
-<button id="downloadBtn" style="background:#2196F3;">Download Word</button>
-<button id="printBtn" style="background:#FF9800;">Print</button>
+  <label>Jumlah Soal Pilihan Ganda</label>
+  <input type="number" id="numMCQ" value="5">
+
+  <label>Jumlah Soal Essay</label>
+  <input type="number" id="numEssay" value="2">
+
+  <button id="processBtn">Proses</button>
+
+  <div id="soal"><strong>SOAL Preview:</strong></div>
+  <div id="jawaban"><strong>JAWABAN Preview:</strong></div>
+
+  <button id="printBtn">Print</button>
+  <button id="wordBtn">Export Word</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script>
-const processBtn = document.getElementById("processBtn");
 const fileInput = document.getElementById("fileInput");
 const cameraInput = document.getElementById("cameraInput");
+const processBtn = document.getElementById("processBtn");
 const soalDiv = document.getElementById("soal");
 const jawabanDiv = document.getElementById("jawaban");
-const downloadBtn = document.getElementById("downloadBtn");
-const printBtn = document.getElementById("printBtn");
+const numMCQInput = document.getElementById("numMCQ");
+const numEssayInput = document.getElementById("numEssay");
 
 processBtn.onclick = async () => {
-  const files = [...fileInput.files, ...cameraInput.files];
-  if(files.length===0){alert("Pilih minimal 1 gambar"); return;}
+  const file = fileInput.files[0] || cameraInput.files[0];
+  if (!file) return alert("Pilih file terlebih dahulu!");
   const formData = new FormData();
-  files.forEach(f=>formData.append("images",f));
-  soalDiv.textContent="Loading OCR & AI...";
-  jawabanDiv.textContent="";
-  const res = await fetch("/upload",{method:"POST",body:formData});
+  formData.append("file", file);
+  formData.append("numMCQ", numMCQInput.value);
+  formData.append("numEssay", numEssayInput.value);
+
+  const res = await fetch("/upload", { method:"POST", body:formData });
   const data = await res.json();
-  if(data.error){soalDiv.textContent=data.error; jawabanDiv.textContent=""; return;}
-  soalDiv.textContent=data.aiResult.soalPG+"\n"+data.aiResult.soalEssay;
-  jawabanDiv.textContent=data.aiResult.jawabanPG+"\n"+data.aiResult.jawabanEssay;
+  soalDiv.innerText = "SOAL:\n" + data.soal;
+  jawabanDiv.innerText = "JAWABAN:\n" + data.jawaban;
 };
 
-downloadBtn.onclick = ()=>{window.location="/download";};
-printBtn.onclick = ()=>{window.print();};
+// Print
+document.getElementById("printBtn").onclick = () => {
+  const printWindow = window.open("", "", "width=800,height=600");
+  printWindow.document.write("<pre>"+soalDiv.innerText+"\n\n"+jawabanDiv.innerText+"</pre>");
+  printWindow.print();
+};
+
+// Export Word
+document.getElementById("wordBtn").onclick = () => {
+  const blob = new Blob([soalDiv.innerText+"\n\n"+jawabanDiv.innerText], { type: "application/msword" });
+  saveAs(blob, "soal.doc");
+};
 </script>
 </body>
 </html>
