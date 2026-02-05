@@ -4,7 +4,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import Tesseract from "tesseract.js";
-import fetch from "node-fetch";
+import fetch from "node-fetch"; // versi 2.x
 import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import sqlite3 from "sqlite3";
 import session from "express-session";
@@ -37,6 +37,7 @@ db.serialize(()=>{
   if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true});
 });
 
+/* ===== MULTER STORAGE ===== */
 const storage = multer.diskStorage({
   destination: (req,file,cb)=>{ cb(null,"uploads"); },
   filename: (req,file,cb)=>{ cb(null,Date.now()+"_"+file.originalname); }
