@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS users (
 )`);
 
 // ===== Folder check aman =====
-["uploads", "processed"].forEach(folder => {
+const folders = ["uploads", "processed"];
+folders.forEach(folder => {
   try {
     fs.mkdirSync(`./${folder}`, { recursive: true });
+    console.log(`Folder ${folder} siap`);
   } catch (err) {
     console.error(`Gagal buat folder ${folder}:`, err);
   }
@@ -39,7 +41,15 @@ app.use(session({
 }));
 
 // ===== Multer upload =====
-const upload = multer({ dest: "uploads/" });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
+});
+const upload = multer({ storage });
 
 // ===== Mock GroqAI =====
 const groqai = {
@@ -140,10 +150,9 @@ app.post("/login", (req, res) => {
   });
 });
 
-// ===== Forgot Password (dummy email) =====
+// ===== Forgot Password (dummy) =====
 app.post("/forgot", (req, res) => {
   const { email } = req.body;
-  // Disini bisa dihubungkan email service
   res.json({ success: true, message: `Link reset password dikirim ke ${email} (dummy)` });
 });
 
