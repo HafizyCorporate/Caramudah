@@ -19,8 +19,13 @@ CREATE TABLE IF NOT EXISTS users (
 )`);
 
 // ===== Folder check aman =====
-fs.mkdirSync("./uploads", { recursive: true });
-fs.mkdirSync("./processed", { recursive: true });
+["uploads", "processed"].forEach(folder => {
+  try {
+    fs.mkdirSync(`./${folder}`, { recursive: true });
+  } catch (err) {
+    console.error(`Gagal buat folder ${folder}:`, err);
+  }
+});
 
 // ===== Express setup =====
 const app = express();
