@@ -1,7 +1,7 @@
 {
-  "name": "scan-soal-ai-full",
-  "version": "3.0.0",
-  "description": "Aplikasi scan soal AI lengkap dengan login, preview, cetak Word, dan print",
+  "name": "scan-soal-ai",
+  "version": "1.0.0",
+  "description": "Scan soal AI mock Groq",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -9,12 +9,11 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "express-session": "^1.17.3",
     "multer": "^1.4.5-lts.1",
     "sqlite3": "^5.1.6",
+    "express-session": "^1.17.3",
     "connect-sqlite3": "^0.9.0",
-    "node-fetch": "^3.3.2",
-    "docx": "^7.3.0",
-    "nodemailer": "^6.9.3"
+    "body-parser": "^1.20.2",
+    "file-saver": "^2.0.5"
   }
 }
