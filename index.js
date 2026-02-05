@@ -1,127 +1,135 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import Tesseract from "tesseract.js";
+import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
 import fs from "fs";
 import path from "path";
-import { GroqAI } from "@groqai/sdk";
-import { Document, Packer, Paragraph, HeadingLevel, PageBreak } from "docx";
+
+// ===== Folder check =====
+if (!fs.existsSync("./uploads")) fs.mkdirSync("./uploads");
+if (!fs.existsSync("./processed")) fs.mkdirSync("./processed");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// ===== Folder Setup =====
-const UPLOAD_DIR = "./uploads";
-const PROCESSED_DIR = "./processed";
-if(!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-if(!fs.existsSync(PROCESSED_DIR)) fs.mkdirSync(PROCESSED_DIR);
+// ===== Multer setup =====
+const upload = multer({ dest: "uploads/" });
 
-// ===== Multer =====
-const upload = multer({ dest: UPLOAD_DIR });
+// ===== Mock GroqAI =====
+// Ini menggantikan import @groqai/sdk yang belum ada
+const groqai = {
+  chat: {
+    completions: {
+      create: async ({ model, messages, temperature, max_tokens }) => {
+        const rawText = messages[1].content || "";
+        // Mock: buat soal pilihan ganda dan essay dari text
+        const soalMock = rawText.split("\n").slice(0, 3).join("\n") + " ...";
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  soal: soalMock,
+                  jawaban: "Jawaban otomatis (mock GroqAI)"
+                })
+              }
+            }
+          ]
+        };
+      }
+    }
+  }
+};
 
-// ===== GroqAI =====
-const groqai = new GroqAI({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
-// ===== Helper =====
-function cleanOCR(text){
-  return text.replace(/\n{2,}/g,"\n").replace(/[|]/g,"").replace(/\s{2,}/g," ").trim();
+// ===== Fungsi bersihkan hasil OCR =====
+function cleanOCR(text) {
+  return text
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[|]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
-// ===== USERS DB (simple JSON for demo) =====
-const USERS_DB = "./users.json";
-if(!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify([]));
-
-// ===== Routes =====
-
-// REGISTER
-app.post("/register", (req,res)=>{
-  const {email,password} = req.body;
-  const users = JSON.parse(fs.readFileSync(USERS_DB));
-  if(users.find(u=>u.email===email)) return res.json({success:false,error:"Email sudah terdaftar"});
-  users.push({email,password});
-  fs.writeFileSync(USERS_DB,JSON.stringify(users));
-  res.json({success:true});
-});
-
-// LOGIN
-app.post("/login",(req,res)=>{
-  const {email,password} = req.body;
-  const users = JSON.parse(fs.readFileSync(USERS_DB));
-  const user = users.find(u=>u.email===email && u.password===password);
-  if(user) res.json({success:true});
-  else res.json({success:false,error:"Email atau password salah"});
-});
-
-// UPLOAD
-app.post("/upload", upload.array("images",5), (req,res)=>{
-  if(!req.files || req.files.length===0) return res.json({success:false,error:"Tidak ada file"});
-  const files = req.files.map(f=>({filename:f.filename, originalname:f.originalname}));
-  res.json({success:true,files});
-});
-
-// PROCESS AI
-app.post("/process-ai", async (req,res)=>{
-  try{
-    const {files} = req.body;
-    if(!files || files.length===0) return res.json({success:false,error:"Tidak ada file untuk diproses"});
+// ===== Endpoint upload & proses OCR + AI =====
+app.post("/upload", upload.array("images", 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "Tidak ada file yang diupload" });
+    }
 
     let fullText = "";
-    for(const f of files){
-      const filePath = path.join(UPLOAD_DIR,f);
-      if(fs.existsSync(filePath)){
-        fullText += "\n" + fs.readFileSync(filePath,"utf-8"); // demo: pakai text, sesuaikan dengan OCR
-      }
+    for (const file of req.files) {
+      const result = await Tesseract.recognize(file.path, "ind+eng");
+      fullText += "\n" + (result.data.text || "");
+      fs.unlinkSync(file.path);
     }
 
     const cleanedText = cleanOCR(fullText);
 
-    let json = { soal: cleanedText, jawaban: "Jawaban belum tersedia" };
+    const aiRes = await groqai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: `
+Kamu asisten guru.
+Rapikan teks OCR menjadi soal singkat, rangkum cerita, format pilihan ganda dan essay.
+Buat jawaban yang benar dan ringkas.
+Keluarkan JSON VALID: {"soal":"...","jawaban":"..."}
+        ` },
+        { role: "user", content: cleanedText }
+      ],
+      temperature: 0.2,
+      max_tokens: 800
+    });
 
-    try{
-      const aiRes = await groqai.chat.completions.create({
-        model:"gpt-4o-mini",
-        messages:[
-          { role:"system", content:`Kamu adalah asisten guru. Rapikan teks hasil OCR menjadi soal & jawaban, keluarkan JSON valid {"soal":"...","jawaban":"..."}.` },
-          { role:"user", content: cleanedText }
-        ],
-        temperature:0.2,
-        max_tokens:800
-      });
+    let json;
+    try {
       json = JSON.parse(aiRes.choices[0].message.content);
-      json.success = true;
-    }catch(e){
-      console.error("AI ERROR:",e);
-      json.success = true; // tetap true supaya preview muncul
-      json.error = "AI gagal memproses. Teks asli ditampilkan.";
+    } catch {
+      json = {
+        soal: cleanedText,
+        jawaban: "Jawaban tidak dapat ditentukan. Mohon cek kembali soal."
+      };
     }
 
-    res.json(json);
+    // ===== Generate Word =====
+    const doc = new Document({
+      sections: [
+        {
+          children: [
+            new Paragraph({ text: "SOAL", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph(json.soal || ""),
+            new Paragraph({ children: [new PageBreak()] }),
+            new Paragraph({ text: "JAWABAN", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph(json.jawaban || ""),
+          ],
+        },
+      ],
+    });
 
-  }catch(e){
-    console.error("PROCESS ERROR:",e);
-    res.json({success:false,error:e.message});
+    const buffer = await Packer.toBuffer(doc);
+    fs.writeFileSync("processed/hasil.docx", buffer);
+
+    res.json({
+      soal: json.soal || "",
+      jawaban: json.jawaban || "",
+      download: "/download"
+    });
+  } catch (e) {
+    console.error("UPLOAD FATAL ERROR:", e);
+    res.status(500).json({ error: "Gagal memproses gambar / AI error" });
   }
 });
 
-// DOWNLOAD WORD
-app.get("/download",(req,res)=>{
-  const doc = new Document({
-    sections:[
-      { children:[
-        new Paragraph({text:"SOAL",heading:HeadingLevel.HEADING_1}),
-        new Paragraph(fs.existsSync("hasil.docx")? fs.readFileSync("hasil.docx"):""),
-      ]}
-    ]
-  });
-  Packer.toBuffer(doc).then(buffer=>{
-    fs.writeFileSync("hasil.docx",buffer);
-    res.download("hasil.docx","hasil-soal.docx");
-  });
+// ===== Download Word =====
+app.get("/download", (req, res) => {
+  const filePath = path.resolve("processed/hasil.docx");
+  if (!fs.existsSync(filePath)) return res.status(404).send("File belum tersedia");
+  res.download(filePath, "hasil-soal-jawaban.docx");
 });
 
-// START SERVER
+// ===== Start server =====
 const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>console.log("Server running on port "+PORT));
+app.listen(PORT, () => console.log("Server running on port " + PORT));
