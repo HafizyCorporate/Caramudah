@@ -1,133 +1,145 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import session from "express-session";
 import SQLiteStore from "connect-sqlite3";
 import bodyParser from "body-parser";
-import fs from "fs";
-import path from "path";
-import multer from "multer";
-import sqlite3 from "sqlite3";
-import nodemailer from "nodemailer";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
-const __dirname = path.resolve();
+const PORT = process.env.PORT || 3000;
 
-// ===================== FOLDER UPLOAD =====================
-["uploads", "processed"].forEach((dir) => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+// --- FOLDER ---
+const uploadsDir = path.join(__dirname,"uploads");
+const processedDir = path.join(__dirname,"processed");
+[uploadsDir,processedDir].forEach(d=>{
+  if(!fs.existsSync(d)) fs.mkdirSync(d);
 });
 
-const upload = multer({ dest: "uploads/" });
+// --- SESSION ---
+app.use(session({
+  store: new (SQLiteStore(session))({ db: "sessions.db", dir: __dirname }),
+  secret: "secret123",
+  resave: false,
+  saveUninitialized: true
+}));
 
-// ===================== DATABASE =====================
-const db = new sqlite3.Database("database.db");
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    password TEXT
-  )`);
-});
-
-// ===================== MIDDLEWARE =====================
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
-app.use(
-  session({
-    store: new (SQLiteStore(session))({ db: "sessions.db", dir: "./" }),
-    secret: "secret-key",
-    resave: false,
-    saveUninitialized: true,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 },
-  })
-);
+app.use(express.static(path.join(__dirname,"public")));
 
-// ===================== ROUTES =====================
+// --- MULTER ---
+const storage = multer.diskStorage({
+  destination: (req,file,cb)=>cb(null,uploadsDir),
+  filename: (req,file,cb)=>cb(null,Date.now()+"-"+file.originalname)
+});
+const upload = multer({ storage });
 
-// HOME / DASHBOARD
-app.get("/", (req, res) => {
-  if (!req.session.user) return res.redirect("/login.html");
-  res.sendFile(path.join(__dirname, "public/index.html"));
+// --- SIMULASI GROQ AI (bisa diganti Groq asli) ---
+function aiProcessImage(filePath,pgCount=2,essayCount=2){
+  // return object pg+essay
+  const pg = [], essay=[];
+  for(let i=1;i<=pgCount;i++){
+    pg.push({ pertanyaan:`PG question ${i}`, jawaban:`Answer ${i}` });
+  }
+  for(let i=1;i<=essayCount;i++){
+    essay.push({ pertanyaan:`Essay question ${i}`, jawaban:`Answer ${i}` });
+  }
+  return { pg, essay };
+}
+
+// --- ROUTES ---
+app.post("/process", upload.single("file"), (req,res)=>{
+  const pgCount = parseInt(req.body.pg)||2;
+  const essayCount = parseInt(req.body.essay)||2;
+  const filePath = req.file ? req.file.path : null;
+
+  if(!filePath) return res.status(400).json({ error:"No file" });
+
+  const data = aiProcessImage(filePath,pgCount,essayCount);
+  req.session.data = data;
+  res.json(data);
 });
 
-// REGISTER
-app.post("/register", (req, res) => {
-  const { email, password } = req.body;
-  db.run(
-    "INSERT INTO users(email,password) VALUES(?,?)",
-    [email, password],
-    function (err) {
-      if (err) return res.status(400).send("Email sudah terdaftar");
-      res.send("Berhasil daftar, silahkan login");
-    }
-  );
+app.post("/session-store",(req,res)=>{
+  req.session.data = req.body;
+  res.json({ ok:true });
 });
 
-// LOGIN
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  db.get(
-    "SELECT * FROM users WHERE email=? AND password=?",
-    [email, password],
-    (err, row) => {
-      if (err) return res.status(500).send("Error server");
-      if (!row) return res.status(400).send("Email atau password salah");
-      req.session.user = { id: row.id, email: row.email };
-      res.send("Login berhasil");
-    }
-  );
+// --- EXPORT WORD ---
+app.get("/export-word", async (req,res)=>{
+  const doc = new Document();
+  const data = req.session.data;
+  if(!data) return res.send("No data");
+
+  data.pg.forEach((q,i)=>{
+    doc.addSection({ children:[ new Paragraph({ children:[ new TextRun(`${i+1}. ${q.pertanyaan} (Jawaban: ${q.jawaban})`) ] }) ] });
+  });
+  data.essay.forEach((q,i)=>{
+    doc.addSection({ children:[ new Paragraph({ children:[ new TextRun(`${i+1}. ${q.pertanyaan} (Jawaban: ${q.jawaban})`) ] }) ] });
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  res.setHeader("Content-Disposition","attachment; filename=soal.docx");
+  res.send(buffer);
 });
 
-// LOGOUT
-app.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/login.html");
+// --- LOGIN / REGISTER / FORGOT ---
+import sqlite3 from "sqlite3";
+const db = new sqlite3.Database(path.join(__dirname,"database.db"));
+db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)");
+
+// register
+app.post("/register",(req,res)=>{
+  const { email,password } = req.body;
+  db.run("INSERT INTO users(email,password) VALUES(?,?)",[email,password], function(err){
+    if(err) return res.json({ error:err.message });
+    res.json({ ok:true });
   });
 });
 
-// FORGOT PASSWORD
-app.post("/forgot", (req, res) => {
-  const { email } = req.body;
-  db.get("SELECT * FROM users WHERE email=?", [email], (err, row) => {
-    if (!row) return res.status(400).send("Email tidak terdaftar");
+// login
+app.post("/login",(req,res)=>{
+  const { email,password } = req.body;
+  db.get("SELECT * FROM users WHERE email=? AND password=?",[email,password],(err,row)=>{
+    if(err) return res.json({ error:err.message });
+    if(!row) return res.json({ error:"Login gagal" });
+    req.session.user=row;
+    res.json({ ok:true });
+  });
+});
 
-    // Kirim email reset (dummy contoh)
+// forgot password (kirim email)
+import nodemailer from "nodemailer";
+app.post("/forgot",(req,res)=>{
+  const { email } = req.body;
+  db.get("SELECT * FROM users WHERE email=?",[email], async (err,row)=>{
+    if(err) return res.json({ error:err.message });
+    if(!row) return res.json({ error:"Email tidak ditemukan" });
+
     const transporter = nodemailer.createTransport({
-      // Contoh pakai Gmail
-      service: "gmail",
-      auth: {
-        user: "your.email@gmail.com",
-        pass: "your-email-app-password",
-      },
+      service:"gmail",
+      auth:{ user:"YOUR_EMAIL@gmail.com", pass:"YOUR_APP_PASSWORD" }
     });
 
     const mailOptions = {
-      from: "your.email@gmail.com",
-      to: email,
-      subject: "Reset Password",
-      text: `Klik link ini untuk reset password: http://localhost:3000/reset.html`,
+      from:"YOUR_EMAIL@gmail.com",
+      to:email,
+      subject:"Reset Password",
+      text:`Password Anda: ${row.password}`
     };
 
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) return res.status(500).send("Gagal kirim email");
-      res.send("Cek email untuk reset password");
+    transporter.sendMail(mailOptions,(err,info)=>{
+      if(err) return res.json({ error:err.message });
+      res.json({ ok:true });
     });
   });
 });
 
-// RESET PASSWORD
-app.post("/reset", (req, res) => {
-  const { email, newPassword } = req.body;
-  db.run(
-    "UPDATE users SET password=? WHERE email=?",
-    [newPassword, email],
-    function (err) {
-      if (err) return res.status(500).send("Gagal reset password");
-      res.send("Password berhasil diubah");
-    }
-  );
-});
-
-// ===================== START SERVER =====================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// --- START SERVER ---
+app.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
