@@ -5,113 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scan Soal AI</title>
 <style>
-body{font-family:Arial,sans-serif;padding:20px;background:#f4f4f4;}
+body { font-family: Arial,sans-serif; padding:20px; background:#f4f4f4;}
 h1{text-align:center;color:#333;}
-.container{max-width:700px;margin:auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
+.container{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
 input,button{margin-top:10px;width:100%;padding:10px;font-size:16px;border-radius:4px;border:1px solid #ccc;}
 button{cursor:pointer;background:#4CAF50;color:#fff;border:none;}
 button:hover{background:#45a049;}
-#soal,#jawaban{margin-top:20px;padding:10px;background:#e8f0fe;border-radius:4px;white-space:pre-wrap;min-height:80px;}
+#soal,#jawaban{margin-top:20px;padding:10px;background:#e8f0fe;border-radius:4px;white-space:pre-wrap;}
 .tips{font-size:14px;color:#555;margin-top:10px;}
-.section{margin-top:20px;}
 </style>
 </head>
 <body>
 <h1>Scan Soal & Jawaban AI</h1>
 <div class="container">
-
-<div class="section" id="loginSection">
-<h2>Login</h2>
-<input type="email" id="loginEmail" placeholder="Email">
-<input type="password" id="loginPassword" placeholder="Password">
-<button id="loginBtn">Login</button>
-<button id="gotoRegisterBtn" style="background:#2196F3;">Daftar Baru</button>
-</div>
-
-<div class="section" id="registerSection" style="display:none;">
-<h2>Daftar</h2>
-<input type="email" id="regEmail" placeholder="Email">
-<input type="password" id="regPassword" placeholder="Password">
-<button id="registerBtn">Daftar</button>
-<button id="gotoLoginBtn" style="background:#2196F3;">Login</button>
-</div>
-
-<div class="section" id="uploadSection" style="display:none;">
 <p class="tips">Tips: Foto terang, kertas lurus, fokus ke soal, hindari bayangan tangan/HP.</p>
 <label>Pilih File (max 5 gambar)</label>
 <input type="file" id="fileInput" multiple accept="image/*">
 <label>Ambil Foto Langsung</label>
 <input type="file" id="cameraInput" multiple accept="image/*" capture="environment">
 <button id="processBtn">Proses</button>
-</div>
 
-<div class="section" id="previewSection" style="display:none;">
-<div id="soal"><strong>SOAL Preview:</strong>\n</div>
-<div id="jawaban"><strong>JAWABAN Preview:</strong>\n</div>
+<div id="soal"><strong>SOAL Preview:</strong></div>
+<div id="jawaban"><strong>JAWABAN Preview:</strong></div>
+
 <button id="downloadBtn" style="background:#2196F3;">Download Word</button>
 <button id="printBtn" style="background:#FF9800;">Print</button>
 </div>
 
-</div>
-
 <script>
-const loginSection=document.getElementById("loginSection");
-const registerSection=document.getElementById("registerSection");
-const uploadSection=document.getElementById("uploadSection");
-const previewSection=document.getElementById("previewSection");
+const processBtn = document.getElementById("processBtn");
+const fileInput = document.getElementById("fileInput");
+const cameraInput = document.getElementById("cameraInput");
+const soalDiv = document.getElementById("soal");
+const jawabanDiv = document.getElementById("jawaban");
+const downloadBtn = document.getElementById("downloadBtn");
+const printBtn = document.getElementById("printBtn");
 
-document.getElementById("gotoRegisterBtn").onclick=()=>{
-  loginSection.style.display="none";
-  registerSection.style.display="block";
-};
-document.getElementById("gotoLoginBtn").onclick=()=>{
-  registerSection.style.display="none";
-  loginSection.style.display="block";
-};
-
-document.getElementById("loginBtn").onclick=async ()=>{
-  const email=document.getElementById("loginEmail").value;
-  const password=document.getElementById("loginPassword").value;
-  const res=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.success){loginSection.style.display="none";uploadSection.style.display="block";}
-  else alert(data.error);
-};
-
-document.getElementById("registerBtn").onclick=async ()=>{
-  const email=document.getElementById("regEmail").value;
-  const password=document.getElementById("regPassword").value;
-  const res=await fetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.success){alert("Berhasil daftar, silakan login");registerSection.style.display="none";loginSection.style.display="block";}
-  else alert(data.error);
-};
-
-const fileInput=document.getElementById("fileInput");
-const cameraInput=document.getElementById("cameraInput");
-const processBtn=document.getElementById("processBtn");
-const soalDiv=document.getElementById("soal");
-const jawabanDiv=document.getElementById("jawaban");
-
-processBtn.addEventListener("click",async ()=>{
-  const files=[...fileInput.files,...cameraInput.files];
-  if(files.length===0){alert("Pilih file dulu!");return;}
-  const formData=new FormData();
+processBtn.onclick = async () => {
+  const files = [...fileInput.files, ...cameraInput.files];
+  if(files.length===0){alert("Pilih minimal 1 gambar"); return;}
+  const formData = new FormData();
   files.forEach(f=>formData.append("images",f));
-  const uploadRes=await fetch("/upload",{method:"POST",body:formData});
-  const uploadData=await uploadRes.json();
-  if(!uploadData.success){alert("Upload gagal: "+(uploadData.error||"unknown")); return;}
-  const fileNames=uploadData.files.map(f=>f.filename);
-  const aiRes=await fetch("/process-ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({files:fileNames})});
-  const aiData=await aiRes.json();
+  soalDiv.textContent="Loading OCR & AI...";
+  jawabanDiv.textContent="";
+  const res = await fetch("/upload",{method:"POST",body:formData});
+  const data = await res.json();
+  if(data.error){soalDiv.textContent=data.error; jawabanDiv.textContent=""; return;}
+  soalDiv.textContent=data.aiResult.soalPG+"\n"+data.aiResult.soalEssay;
+  jawabanDiv.textContent=data.aiResult.jawabanPG+"\n"+data.aiResult.jawabanEssay;
+};
 
-  soalDiv.innerText="SOAL Preview:\n"+(aiData.soal||aiData.error||"Tidak ada data");
-  jawabanDiv.innerText="JAWABAN Preview:\n"+(aiData.jawaban||aiData.error||"Tidak ada data");
-  previewSection.style.display="block";
-});
-
-document.getElementById("downloadBtn").onclick=()=>{window.location.href="/download";};
-document.getElementById("printBtn").onclick=()=>{window.print();};
+downloadBtn.onclick = ()=>{window.location="/download";};
+printBtn.onclick = ()=>{window.print();};
 </script>
 </body>
 </html>
