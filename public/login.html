@@ -1,23 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+</head>
 <body>
-<h2>Login</h2>
-<input id="email" placeholder="Email"><br>
-<input id="password" type="password" placeholder="Password"><br>
-<button onclick="login()">Login</button>
-<button onclick="forgot()">Lupa Password</button>
-
+<h1>Login</h1>
+<form id="loginForm">
+<input type="email" id="email" placeholder="Email" required>
+<input type="password" id="password" placeholder="Password" required>
+<button type="submit">Login</button>
+</form>
+<p><a href="register.html">Daftar</a> | <a href="#" id="forgot">Lupa Password?</a></p>
 <script>
-function login(){
- fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
- body:JSON.stringify({email:email.value,password:password.value})})
- .then(r=>r.json()).then(alert)
-}
-function forgot(){
- fetch("/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},
- body:JSON.stringify({email:email.value})})
- .then(r=>r.json()).then(()=>alert("Email dikirim"))
-}
+document.getElementById("loginForm").onsubmit=async e=>{
+e.preventDefault();
+const email=document.getElementById("email").value;
+const password=document.getElementById("password").value;
+const res=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+const data=await res.json();
+if(data.success){alert("Login sukses"); window.location="index.html";}else{alert(data.error);}
+};
+document.getElementById("forgot").onclick=async ()=>{
+const email=prompt("Masukkan email untuk reset password:");
+if(!email)return;
+const res=await fetch("/forgot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+const data=await res.json(); alert(data.message);
+};
 </script>
 </body>
 </html>
