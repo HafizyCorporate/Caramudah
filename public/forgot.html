@@ -1,14 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Lupa Password</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lupa Password</title>
 </head>
 <body>
 <h2>Lupa Password</h2>
-<form action="/forgot" method="POST">
-  <input type="email" name="email" placeholder="Email" required /><br/>
-  <button type="submit">Kirim Email Reset</button>
-</form>
-<p><a href="/login.html">Login</a></p>
+<input type="email" id="email" placeholder="Email">
+<button id="forgotBtn">Kirim Password</button>
+<p><a href="login.html">Login</a></p>
+
+<script>
+const forgotBtn = document.getElementById("forgotBtn");
+forgotBtn.onclick = async ()=>{
+  const email = document.getElementById("email").value;
+  const res = await fetch("/forgot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+  const data = await res.json();
+  if(data.ok) alert("Password dikirim ke email");
+  else alert("Error: "+data.error);
+};
+</script>
 </body>
 </html>
